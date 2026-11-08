@@ -75,5 +75,7 @@ Be brief. Do not restate the plan back to me. When a phase is done, say what it 
 - Database access happens in server code only, never inside interface components.
 - Name columns explicitly. Limit list reads. Do not poll the database in a loop.
 - Use one obvious way to do each thing. Do not add configuration options nobody asked for.
-- The interface is a dense developer tool: small type, tight spacing, monospace for file paths. Colour carries meaning or is absent. Nothing moves unless the person clicked it.
+- The interface is a dense developer tool: small type, tight spacing, monospace for file paths. Nothing moves unless the person clicked it.
+- Accessibility is WCAG 2.2 AA, and every screen must pass the automated accessibility check. Colour is never the only signal: every meaning carried by colour also has a shape, a dash pattern, or a text label. Use only the palette values defined in the design document, and do not add colours.
+- Every interactive element is reachable and operable by keyboard, with a visible focus indicator. Every file and edge has a text label for screen readers.
 - Do not add new interface components, routes or endpoints beyond what the current phase spec names.
