@@ -1,0 +1,55 @@
+[project]
+name = "codecraft-workspace"
+version = "0.0.0"
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.14"
+include = ["packages"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages"]
+
+[tool.importlinter]
+root_packages = [
+  "codecraft_core", "codecraft_parsing", "codecraft_analysis",
+  "codecraft_storage", "codecraft_explain", "codecraft_api",
+]
+
+[[tool.importlinter.contracts]]
+name = "Core imports nothing internal"
+type = "forbidden"
+source_modules = ["codecraft_core"]
+forbidden_modules = [
+  "codecraft_parsing", "codecraft_analysis", "codecraft_storage",
+  "codecraft_explain", "codecraft_api",
+]
+
+[[tool.importlinter.contracts]]
+name = "Parsing and analysis stay independent of delivery"
+type = "forbidden"
+source_modules = ["codecraft_parsing", "codecraft_analysis"]
+forbidden_modules = ["codecraft_storage", "codecraft_explain", "codecraft_api"]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.16",
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
