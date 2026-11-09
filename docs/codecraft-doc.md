@@ -6,27 +6,25 @@ Read the part you need before you build something. Don't read it all at once, an
 
 ## What it is
 
-Sign in, point CodeCraft at a repository, and get a map of it. The repository can be a public GitHub URL or a local directory. Each folder is a box, and each import is a line between files. Open a folder into its files. Select a file and see what it imports, what imports it, and what breaks two levels out if it changes. Ask for an explanation and get a paragraph written from that file and its real neighbours.
+Sign in, point CodeCraft at a repository, and get a map of it. The repository can be a public GitHub URL or a local directory. Each folder is a box, and each import is a line between files. Open a folder into its files. Select a file and see what it imports, what imports it, and what breaks two levels out if it changes. Ask for an explanation and get a paragraph written from that file and its real neighbours. Ask a question of the repository and watch it look the answer up.
 
-Then a panel where you can ask the repository a question and watch it look the answer up.
-
-The codebase can be Python, Go, JavaScript or TypeScript, or a mix. Config and data files that carry real relationships to code are part of the map too: JSON, YAML, TOML, SQL and Dockerfiles.
+The codebase can be TypeScript, JavaScript, Python or Go, or a mix of them. Config and data files that carry real relationships to code are part of the map too: JSON, YAML, TOML, SQL and Dockerfiles.
 
 ## The problem
 
-Codebases now routinely contain code nobody on the team has read. An agent wrote it, someone confirmed it worked, it shipped. That is a reasonable way to work and it is not going to stop, but it accumulates structure nobody chose. Files that import through three layers of re-exports. A utility forty files depend on. A module nothing has referenced in months.
+Codebases now routinely contain code nobody on the team has read. An agent wrote it, someone confirmed it worked, it shipped. That is a reasonable way to work, and it is not going to stop. But it accumulates structure nobody chose: files that import through three layers of re-exports, a utility forty files depend on, a module nothing has referenced in months.
 
 The questions that follow are structural. What is this file, what depends on it, what breaks if it changes. Answering them today means reading imports one file at a time and holding the results in working memory. That stops working at around thirty files, and it stops being attempted at all somewhere past a hundred.
 
 ## Who it's for
 
-A developer opening a codebase they didn't write. Most often it's one they built themselves with an agent, across many sessions, and can no longer hold in their head.
+A developer opening a codebase they didn't write. Most often it's one they built with an agent, across many sessions, and can no longer hold in their head.
 
 They can read code fine. What they can't see is its shape.
 
-And increasingly that isn't one person's problem. A team of four all shipping this way inherits four sets of code nobody read, and the person who joins next inherits all of it at once. So an analysis belongs to an organization rather than to whoever happened to run it. A repository is mapped once, and everyone after that starts from the map.
+Increasingly this is a team problem. A team of four all shipping this way inherits four sets of code nobody read, and the person who joins next inherits all of it at once. So an analysis belongs to an organization rather than to whoever ran it. A repository is mapped once, and everyone after that starts from the map.
 
-This description is the test every feature gets measured against. When something tempting comes up, such as a quality score, a rating or a review panel, the question is whether the person described here wants it. Usually they don't. They want to know what depends on this file.
+This description is the test every feature is measured against. When something tempting comes up, such as a quality score, a rating or a review panel, the question is whether this person wants it. Usually they don't. They want to know what depends on this file.
 
 ## Why this hasn't stuck before
 
@@ -34,7 +32,7 @@ Codebase visualisation is not a new idea, and the track record is poor. CodeSee 
 
 The most likely explanation is that both were selling a map of a codebase the user had already read. A map you could have drawn yourself is a nice-to-have, and nice-to-haves lose. What changed is that people now ship code they have never read. That turns the same artifact into something needed on a specific afternoon, for a specific reason.
 
-The current generation of AI tools mostly works the other way round. They hand the repository to a model and let it describe the structure. That is much faster to build, which is why there are many of them, and it is the approach this product is deliberately not taking. The next section explains why.
+The current generation of AI tools mostly works the other way round. They hand the repository to a model and let it describe the structure. That is much faster to build, which is why there are many of them, and it is the approach this product deliberately does not take.
 
 That's the bet. It is a bet, and it should be stated as one.
 
@@ -44,128 +42,224 @@ That's the bet. It is a bet, and it should be stated as one.
 
 The AI may explain and label. It may never decide that two files are connected, and it may never walk the graph when arithmetic can do it instead.
 
-The reason is bluntly stated: a dependency graph that is ninety percent right is worse than no graph, because there is no way to tell which ten percent is wrong. The moment a model is allowed to guess at an edge, every edge becomes a maybe, and the product is a nice-looking picture.
+A dependency graph that is ninety percent right is worse than no graph, because there is no way to tell which ten percent is wrong. The moment a model is allowed to guess at an edge, every edge becomes a maybe, and the product is a nice-looking picture.
 
-Pressure to break this comes from two directions. "AI code analysis" pulls toward letting the model reason about structure. Anything calling itself a code tool drifts toward becoming a code reviewer. Both are refused.
-
-An edge exists only when a reference resolves to a real file or a real table in the input. A reference that cannot be resolved is recorded with its reason and never guessed into an edge. Config and data files follow the same rule: a literal path or table name that exists is an edge, and a name that merely looks similar is not.
+An edge exists only when a reference resolves to a real file or a real table in the input. A reference that cannot be resolved is recorded with its reason and never guessed into an edge. A route is shown only when its method and full path are both exact. A name that merely looks similar to a real file is not evidence of a connection.
 
 ## Scope
 
-- Sign-in with GitHub, Google or email, for identity only. No repository scope, no stored user token, public repositories only.
-- Organizations. Every analysis belongs to one, people are invited into one, and what you can see follows from which one you are in. Default roles only.
-- Parsing every file. Imports, re-exports and dynamic imports become edges. `require()` counts as well, because a large amount of real code still uses it.
+- Sign-in with GitHub, Google or email, for identity only. No repository scope, no stored user token. Public repositories only.
+- Organizations. Every analysis belongs to one. People are invited into one, and what they can see follows from which one they are in. Default roles only.
+- Parsing every file in scope. Imports, re-exports, dynamic imports and `require` calls become edges, because a large amount of real code still uses them.
 - Fan-in and fan-out per file.
-- The map: folders folding into boxes, expanding into files, selection, highlighting, and a detail panel.
+- The map, with folders folding into boxes, expanding into files, selection, highlighting and a detail pane.
 - Blast radius and dependency chain, as arithmetic over the edge list.
-- Explaining a file, with a cache that isn't optional.
-- Labelling files that convention couldn't identify, rather than guessing what they are.
-- Coverage reporting: how much of the repository was parsed, and why the rest wasn't.
-- Live progress during parsing, because parsing a real repository is not instant.
+- Explanations of files and folders, with a cache that is not optional.
+- Labelling files that convention could not identify, rather than guessing what they are.
+- Coverage reporting: how much of the repository was parsed, and why the rest was not.
+- Live progress while a repository is analysed.
 - A chat panel answered by an agent that looks facts up rather than recalling them.
-- A check on whether the AI ever names a file that doesn't exist.
-- External dependencies, meaning packages installed from outside the repository. They are counted and listed, but they are not drawn as boxes, because the map is about this repository.
+- Evaluations that measure the explanations and the agent, so changes are judged by a number.
+- Framework knowledge through adapters: Next.js and Express for TypeScript and JavaScript, FastAPI for Python, and the Go standard HTTP package for Go. Each adapter recovers only exact routes.
 
-## Language-specific behaviour
+## Language rules
 
-Each language has rules that determine which references count, and those rules are where edges are most often lost or invented. The defined set of forms is what keeps each resolver honest.
+Each rule below is a constraint on the resolver. Where the rule says "reported", the reason is recorded and shown.
 
-**Python.** Relative imports resolve against the package structure. Re-exports through an `__init__` file are followed, and `__all__` is respected. Conditional imports inside `try` blocks count as edges, marked as conditional. `importlib` calls count only when the module name is a string literal. Anything computed at runtime is unresolved. Packages without an `__init__` file are followed by their directory structure, and the coverage report says so.
+**TypeScript and JavaScript.** Resolution is done by the TypeScript compiler's own resolver, not by a reimplementation. Its answers are authoritative. Every resolved import records which resolution path was taken: an extension, an index file, a package entry point or a path alias.
 
-**Go.** The module path comes from the module file, and an import is a package path rather than a file. Edges go to a package, which maps to the files in that directory. Imports of packages outside the module are external. The vendor directory is treated as external. Build tags are read, and files excluded by a tag are shown as excluded, not as absent.
+- Under a package that declares itself as a module, relative imports must carry runtime-valid extensions. An import that compiles but would fail at runtime is reported as a runtime problem.
+- Workspace packages inside the repository resolve to their files. Anything in dependency folders is external and is counted, not drawn.
+- Type-only imports and exports are a separate edge kind, so runtime dependencies can be told apart from compile-time ones.
+- Imports of JSON, CSS, SVG and image files are edges of an asset kind.
+- `require` and `import()` with a literal string are edges. A template string or a variable is reported as unresolved. Bundler globs expand to one edge per matched file.
+- Aliases defined only in a bundler's configuration are reported as unresolved, unless that configuration is read too.
+- An import whose letter case differs from the file on disk is reported, because it works on some operating systems and fails on others.
+- Symbolic links inside the repository must not create duplicate nodes or loops.
+- Build output, minified files and generated bundles are excluded by default and reported as excluded, not as missing.
 
-**JavaScript and TypeScript.** Path aliases from the compiler configuration are resolved, along with extensions, index files, and the package manifest's entry points. Barrel files, meaning files that re-export others, are followed, because a repository built on them loses most of its edges otherwise. `require()` and dynamic `import()` count when the path is a literal. JSX and TSX are parsed as their own grammars.
+**Python.** Resolution depends on the import root, which is determined from the project's metadata and reported. Layout is either flat or under a source folder, and the rule that chose it is shown.
 
-**Config and data files.** JSON, YAML and TOML count as edges only when a value is a path or a name that resolves to something in the input. A CI workflow that names a script, a compose file that names a build directory, and a project file that names a package all qualify. SQL counts a table reference only when the table is created in the input. A Dockerfile counts a copy or add only when the source path exists.
+- Relative imports that climb above the top-level package are reported as unresolved.
+- Packages without an initialisation file are followed as namespace packages, and coverage notes that they were.
+- Star imports create an edge to the module. The names they bring in are unknown unless the module declares them, and the map says so.
+- Imports under a type-checking guard are type-only. Imports inside a function are lazy. Imports inside an optional-dependency guard are optional. Each is its own edge kind.
+- `importlib.import_module` and `__import__` with a literal string are edges. Computed names are reported.
+- When a stub file and a source file both exist, they describe one module.
+- Files that cannot be parsed, use a legacy encoding or contain legacy syntax are reported with the reason.
+- Virtual environments committed to the repository are external.
+- Test files and the test runner's configuration are entry points, because the runner reaches them, not imports.
+
+**Go.** Go's package model is different, so edges point at packages and each package maps to the files in its directory.
+
+- The module path comes from the module file. Replacement directives and multi-module workspaces are read, so the repository boundary is correct.
+- Test files form their own edge kind. External test packages in the same directory are separate packages.
+- Build constraints exclude files for other platforms. Excluded files are reported as excluded for the build context shown on the map, never as absent. The default context is shown to the person viewing the map.
+- Dot imports and blank imports each have their own edge kind.
+- Calls into C code are reported as unresolved, because the C code is not part of what the parser reads.
+- Embedded files with a literal path are edges. A glob expands to the matching files.
+- Files marked as generated are labelled as generated.
+
+**Configuration and data files.** These produce edges only when a value names something that exists in the input.
+
+- JSON with comments and trailing commas is read as JSONC, because the TypeScript configuration format allows both.
+- Files over the size limit are skipped with a reason, never read partially.
+- YAML anchors, aliases and multiple documents are supported. Literal references, such as a local action in a CI workflow or a build context in a compose file, are edges. Templated values are reported as unresolved.
+- TOML entry points and tool configuration that name paths are edges.
+- SQL is read for one declared dialect. A table reference is an edge only when the table is created in the input. Migrations are applied in order so the map shows the final state and keeps the history. Dynamic SQL built in strings is reported as unresolved.
+- Dockerfile copies from a build stage are edges to that stage. A copy is an edge to a file only if the build context includes it, so ignore rules are read.
 
 ## Out of scope, and why
 
 Each of these is something a model will propose, because each sounds like an improvement. The reason matters more than the refusal.
 
-- **Scores, grades, severity badges, "three issues found".** This product explains a codebase. It does not review one. Once there is a number, people argue with the number instead of reading the map.
-- **Letting the agent traverse the graph itself.** The agent picks a starting point and a direction. The same arithmetic that draws the canvas does the walk. If the model does the walking, invented structure comes straight back in.
-- **Private repositories.** This requires a token that would then have to be stored. Not in this version.
-- **Approximate routes.** If a route's method and full path cannot both be recovered from the syntax, show nothing. A wrong route is the same failure as an invented edge.
-- **Queues, containers and workers.** One deployable application. If a repository is too large to parse within a request, that is a limit to state honestly, not an architecture to build around.
-- **Cross-language edges.** A TypeScript call matching a Python route is heuristic. It is the first place a guessed edge would appear, so it is not drawn.
-- **Resolving third-party code.** Packages in dependency folders, the Go module cache and Python site-packages are external. Analysing them would multiply the map by an order of magnitude and mix someone else's structure into this one.
-- **Languages beyond these four and the listed config formats.** Not because they are hard, but because getting these right is the entire proposition.
+- **Scores, grades, severity badges and "issues found".** This product explains a codebase. It does not review one. Once there is a number, people argue with the number instead of reading the map.
+- **The agent walking the graph itself.** The agent picks a starting point and a direction. The same arithmetic that draws the map does the walk. If the model does the walking, invented structure returns.
+- **Private repositories.** This requires a user token that would then have to be stored. Not in this version.
+- **Approximate routes.** If a route's method and full path cannot both be recovered from the syntax, nothing is shown. A wrong route is the same failure as an invented edge.
+- **Cross-language edges.** A TypeScript call matching a Python route is heuristic, and it is the first place a guessed edge would appear.
+- **Third-party code.** Packages in dependency folders, the Go module cache and Python environments are external. Analysing them would multiply the map and mix someone else's structure into this one.
+- **Other web frameworks.** Frameworks beyond the four adapters in version 1 are not supported yet. Each one is added as its own adapter, and each must first state which of its routes can be recovered exactly.
+- **Documentation frameworks.** Their content is prose, and prose is excluded from the map.
+- **Notebooks, Vue, Svelte and Astro.** Each needs its own parser. Until one exists, these files are reported as skipped with a reason, so the map never pretends to understand a file it cannot read.
+- **Languages beyond the four listed and the configuration formats listed.** Not because they are hard, but because getting these right is the whole proposition.
 
 ## How it works
 
 No folder names here. The structure is yours to choose. These are constraints on behaviour.
 
-**The parser is standalone.** It takes a directory path and returns files, edges, unresolved references and a coverage report. It does not know the web framework exists, does not know the database exists, and runs from a plain script with nothing else running. If it can't run standalone, the layering is wrong.
+**The parser is standalone.** It takes a directory and returns files, edges, unresolved references and a coverage report. It does not know the web framework or the database exists, and it runs from a plain script with nothing else running. If it can't run standalone, the layering is wrong.
 
-**Every language has its own parser, and every parser emits the same representation.** The representation holds the files, the symbols, the edges (each with a kind and a source location) and the unresolved references (each with a reason). Storage, graph calculations, the API and the explanation layer work only on that representation and never learn which language produced an edge. Supporting a new language means writing one parser. Nothing else changes.
+**Each language has its own parser, and every parser emits the same representation.** The representation holds the files, the symbols, the edges (each with a kind and a source location), the unresolved references (each with a reason) and the coverage report. Storage, graph calculations, the API, the explanations and the agent work only on that representation, and none of them learn which language produced an edge. Supporting a new language means writing one parser.
 
-**Framework knowledge is an adapter, not a branch.** The first version ships with no framework adapters. Knowing that a file in a particular position is a Next.js page belongs in an adapter, and the adapter interface exists now so that the first framework can be added without touching the parser. An `if (framework === ...)` inside parsing code means the boundary has failed.
+**The TypeScript resolver is a separate helper.** It is a small Node program that uses the TypeScript compiler to resolve references. The Python parser calls it through a versioned contract, and both sides validate the messages they exchange. The TypeScript version is pinned, because resolution results change between versions. Node is provided by the project's tool pinning, not by whatever is installed on the machine.
 
-**Graph calculations are pure functions** over a list of files and a list of edges. No data fetching inside them, and nothing to mock in order to check them.
+**Framework knowledge is an adapter, not a branch.** Knowing that a file in a particular position is a page is framework knowledge, and it lives in an adapter. The parser contains no framework checks. An adapter may classify files and recover routes, and it may only use facts the parser already produced.
 
-**Identity comes from Clerk, and access comes from the database.** Clerk decides who a person is and manages organizations, invitations and roles. Supabase Postgres decides what that person may read. The application never decides access on its own.
+**Graph calculations are pure functions** over a list of files and a list of edges. They do no data fetching and need nothing mocked to test them.
 
-**Revocation is the point that must be right.** An organization claim carried inside a signed token goes stale. Removing someone would take effect only when their token refreshed, which is a security property that depends on a refresh cycle nobody controls. So membership is mirrored into the database. Clerk's organization events arrive by webhook, and the API writes them into a membership table. Row-level policies check that table on every query, not the token. Removal takes effect as soon as the webhook is processed.
+**Parsing is bounded.** Explicit limits on file count and file size make a large repository fail with a stated reason rather than hang or run out of memory.
 
-**Row-level security is on by default, not per table.** The two failure modes are not symmetrical. A table with security enabled and no policy yet returns nothing, which is visible. A table where someone forgot to enable it returns everything, silently. The second must be impossible rather than unlikely. An automated test enumerates every table and fails if any has security disabled.
+**Coverage counts what the parser did not look for.** Module-loading syntax the parser does not recognise is counted as unreported, not as success. A project whose graph is nearly empty while coverage reads 100 percent is a failure, and the map must show it as one.
 
-**Every AI call is traced and cached**, with the cache read inside the traced function, so a cache hit appears as a recorded run containing no model call. That is what makes the cache verifiable rather than assumed.
+**Analyses record the parser version that produced them.** When the parser changes, existing analyses are marked as stale, so an old result is never presented as current.
 
-**The model client is configured by protocol, not provider.** Many providers and local servers speak one of two wire protocols, so configuration names the protocol, the endpoint and the model. The client module is the only code that calls a model, and nothing is defaulted in code.
+## Pipeline
+
+A person pastes a public GitHub URL or chooses a local path. The analyzer fetches the repository as an archive, selects the files in scope, parses them, and stores the result. The person then goes straight to the map.
+
+- Each analysis records the commit it came from, so a repository is never silently re-analysed.
+- One analysis exists per repository per organization. Pasting a repository that has already been analysed opens the existing analysis. Rerunning is a separate, explicit action.
+- Progress is streamed to the page as the run moves through its stages. The browser does not poll.
+- Every network call has a timeout. A stalled download fails the run with a recorded reason instead of hanging.
+- A run that throws records the failure. A run that disappears without failing is marked stale after a defined period, so the dashboard never shows a dead run as working.
+- Status updates carry the identifier of the run that made them and apply only if that run still owns the record. A slow run that fails late must not overwrite a newer run's result.
+
+## Frameworks
+
+Version 1 has one framework adapter for each language: Next.js and Express for TypeScript and JavaScript, FastAPI for Python, and the Go standard HTTP package for Go. An adapter reads a framework's conventions on top of the parser's output, using only facts the parser already produced. It gives files roles, and it recovers routes only when both the method and the full path are exact.
+
+**Next.js.** Roles come from file conventions: page, layout, route handler, loading, error, not-found, template, middleware, instrumentation and configuration files, plus the pages-router convention. Routes come from route handler exports named for an HTTP method, and from page locations. Dynamic segments are shown in their written form, never expanded to guessed values. Route groups, parallel-route slots and intercepting routes are recognised so their paths are read correctly. Server actions are marked by their `"use server"` directive, at file level or function level. Client boundaries are shown, so the map can display where server and client code meet.
+
+**Express.** Roles come from folder conventions for routes, controllers, services, middleware and models, with both singular and plural names accepted. Routes are shown only when the path is a literal and the router is the application itself, or when the full path is complete in one file. Routers mounted under a prefix in another file, and routes built from variables, are composed across files and cannot be recovered exactly. Those routes are not shown, and the coverage report states why.
+
+**FastAPI.** Roles come from folder and naming conventions for routers, schemas, models, services and dependencies, with singular and plural names accepted. Routes are shown when a route decorator on the application object has a literal path. Routes on a router are shown only when that router's full path is complete in the same file. A prefix supplied by an include call in another file composes the path across files, so those routes are not shown, and the coverage report states why.
+
+**Go standard HTTP package.** Roles come from package and file conventions: command entry points, handlers, and internal packages. Routes are shown when a pattern registered on a mux in the same file is a string literal combining a method and a path, as the standard library accepts since Go 1.22. A mux passed between files, or a pattern built from variables, is composed or computed, so those routes are not shown.
+
+Every adapter is tested with fixtures that contain both a literal route, which must be shown, and a composed route, which must be absent. Adding a framework later follows the same steps: it states its exact cases before it is built, and its fixtures come with it.
 
 ## The interface
 
-A dense developer tool, not a dashboard. Small type, tight spacing, and monospace for anything that is a file path. Someone using this is scanning a lot of names at once, and the layout should assume that rather than fight it.
+A dense developer tool, not a dashboard. Small type, tight spacing, and monospace for anything that is a file path. Someone using this is scanning many names at once, and the layout should assume that.
 
-Dense does not mean inaccessible. The interface meets WCAG 2.2 AA, the current web accessibility standard. This is part of every phase's acceptance, not a later pass.
+**The shell has three columns and is built once.** A narrow rail on the left lists categories with counts. The map fills the middle. The detail pane sits on the right. The pane has an Overview tab when nothing is selected, and tabs for Structure, Explanation and Ask once a file or folder is selected. Later phases fill these areas and do not move them.
 
-**Colour is never the only signal.** Every meaning that colour carries also has a shape or a text cue. Incoming edges are solid, with the arrowhead at the file. Outgoing edges are dashed, with the arrowhead at the target. The detail panel names each edge as incoming or outgoing. The map stays readable in greyscale, in print, and for colour-blind users.
+**Folding is a rule, not a guess.** Every directory starts as its own node. Working from the deepest directory upward, any directory holding fewer than two files merges into its parent. Opening a folded node shows its files, and a folder with many files scrolls. The two-file threshold is the default, and it is tuned against real repositories before it is treated as final.
 
-**The palette uses the Okabe-Ito set,** which is designed to stay distinguishable under the common forms of colour-vision deficiency. Incoming is blue (#0072B2 in light mode, a lighter tint in dark mode). Outgoing is vermillion (#D55E00 in light mode, #E69F00 in dark mode). Blue and vermillion are the most reliable pair across deuteranopia, protanopia and tritanopia. Green and amber are not: for red-green colour blindness they collapse into nearly identical tones, so they are not used.
+**Edges have a direction the eye can read without colour.** Incoming edges are solid, with the arrowhead at the file. Outgoing edges are dashed, with the arrowhead at the target. Colour reinforces direction but never carries it alone.
 
-**Selection is not a hue.** The selected item gets a two-pixel outline in the primary text colour, plus a tinted fill. The accent is not one of the edge colours, so selecting something can never be mistaken for a direction.
+**Selection shows the neighbourhood.** Selecting a file or folder keeps it, its edges and the items they connect to at full strength, and dims the rest. Clicking the same item again, clicking empty canvas or closing the pane clears the selection.
 
-**Kind is shown by label and icon.** Each file kind has a text label and a glyph. Colour may reinforce a kind, but never carries it alone, and kind colours never reuse the two edge colours.
+**Anything derivable from the edge list is instant.** If an answer is arithmetic over data the browser already holds, it appears immediately, with no spinner and no network request. A spinner in front of arithmetic teaches people to distrust the fast paths, and most of the interface is fast paths.
 
-**Contrast.** Text meets 4.5:1 against its surface. Graphics that carry meaning, including edges, node borders, the selection outline and the focus ring, meet 3:1. Light and dark palettes are verified separately, and the exact values are confirmed by an automated contrast check rather than by eye.
+**The map is drawn deterministically.** The layout is computed in the browser from the edge list. The same analysis always draws the same way, so a person can return to a map and find things where they left them.
 
-**Keyboard and screen readers.** Every action in the map can be done from the keyboard: moving between files, selecting, expanding a folder, and opening the detail panel. Focus is always visible. Each file and edge has a text label that a screen reader announces. The map is never the only way to reach information. The same data is available as a list.
+**Insights are collapsed by default.** They report import cycles, files nothing imports, heavily depended-upon files and unusually large files. A file that nothing imports is not automatically unused. Pages, routes, layouts, middleware and test files are reached by the framework or the test runner, so they count as entry points, and the insight does not flag them.
 
-**Size and zoom.** Type stays readable at 200% browser zoom, without horizontal scrolling of the main content. Interactive targets are at least 24 by 24 CSS pixels.
+**Coverage is visible, not buried.** Parsed, skipped and unresolved counts sit where a person looks first. A map that hides its gaps is the failure this product exists to prevent.
 
-**Themes.** Three states: follow the system, force light, or force dark. The choice survives a reload. Both palettes are complete and verified separately.
+**The palette uses the Okabe-Ito set,** which is designed to stay distinguishable under common colour-vision deficiency. Incoming is blue. Outgoing is vermillion. Blue and vermillion are the most reliable pair across deuteranopia, protanopia and tritanopia. Green and amber are not used, because red-green colour blindness collapses them into nearly identical tones.
 
-**Nothing moves on its own.** Motion happens because something was clicked. No ambient animation, no pulsing, no drifting graph. Any transition added later respects the system's reduced-motion setting.
+**Three theme states:** follow the system, force light, or force dark. The choice survives a reload, and both palettes are complete and verified separately.
 
-**Anything derivable from the edge list is instant.** If an answer is arithmetic over data the browser already holds, it appears immediately, with no spinner and no network request. A spinner in front of a calculation teaches people to distrust the fast paths, and most of the interface is fast paths.
+**Accessibility is WCAG 2.2 AA.** This is part of every phase's acceptance, not a later pass.
 
-**The shell is built once.** Where the panels sit, and what each one is for, is settled in an early phase. Later phases add to those panels and do not rearrange them. Specific placement lives in the phase specs.
+- Colour is never the only signal. Every meaning carried by colour also has a shape, a dash pattern or a text label.
+- Selection is shown by an outline and a tinted fill, not by a hue, so selecting something cannot be mistaken for a direction.
+- File kinds are shown by a label and an icon. Colour may reinforce a kind but never carries it alone.
+- Text meets 4.5 to 1 contrast against its surface. Meaningful graphics, including edges, node borders, the selection outline and the focus ring, meet 3 to 1.
+- Every action on the map can be done from the keyboard, focus is always visible, and every file and edge has a text label that a screen reader announces. The same data is available as a list, so the map is never the only route to information.
+- Type stays readable at 200 percent zoom without horizontal scrolling of the main content. Interactive targets are at least 24 by 24 CSS pixels.
+- Nothing moves unless it was clicked. Any transition respects the system's reduced-motion setting.
 
-**Coverage is visible, not buried.** Parsed, skipped and unresolved counts sit where the person looks first. A map that hides its gaps is the failure this product exists to prevent.
+## Explanations
 
-## Architecture
+An explanation is written from the file's real neighbours: what it imports, what imports it and its role. The model receives the file source, fetched at the analysed commit and checked against the stored hash, together with the edges read from storage.
 
-The parts are: acquisition (turns a URL or path into files), parsing (one component per language), resolution (turns references into edges or unresolved records), analysis (pure calculations), storage (persists analyses and enforces who may read them), the API (the interface for the frontend and any other client), and explanation (the AI layer, which reads only from the representation).
+Each explanation is cached by the hash of its content. If the file has not changed, the cached explanation is returned. If it has changed, a new one is generated.
 
-The parts talk only through the representation or a versioned API contract. Nothing reaches into another part's internals. Any part can become its own service later without its contract changing. Splitting now would add network failure modes with no present benefit, so it is not done now.
+The cache lookup happens inside the trace, not before it. A cache hit appears as a recorded run that contains no model call and no tokens, so the cache can be verified rather than assumed.
 
-Parsing runs in a process pool on standard Python 3.14. Each worker receives a file and returns an immutable result. A single coordinator writes to storage. Workers share no mutable state, so a race condition in one cannot corrupt another's work.
+Files that no adapter could classify are labelled with a role from a fixed list. A label is generated when someone asks for an explanation of that file. It is never a routable role, and it never changes the graph.
 
-Free-threaded Python is not used. Its main benefit is threads sharing one process's memory, which this design deliberately avoids. The tree-sitter grammar packages also publish only stable-ABI wheels, which do not install on the free-threaded interpreter. The choice is revisited when those packages publish free-threaded wheels and a benchmark on target hardware shows a clear gain.
+Every explanation is checked against the paths it was shown. Any path the explanation names that was not in the context it received is recorded as invented on the trace. This check is code, not a model.
 
-The web layer is asynchronous, and parsing never runs inside a request. Progress streams to the client with Server-Sent Events, which is simpler than polling and fits a one-way stream.
+## The agent
 
-Parsing is bounded by explicit limits on file count and file size. A repository over a limit fails with a stated reason rather than hanging or exhausting memory.
+The chat panel is answered by an agent that runs as its own service, separate from the web API. The service is written in Python, and it calls the API's read-only endpoints for everything it needs. It has no database credential and no signing key.
 
-## Frontend
+The agent has six tools: a summary of the analysis, a search of files by part of a path, a list of files by role, the direct neighbours of a file, a transitive walk in either direction, and the route table. Each tool is a thin wrapper around the same graph functions that draw the map. The agent never has its own version of the traversal.
 
-React with a Vite single-page application, talking to the Python API.
+The model never chooses which analysis it can see. When a person asks a question, the API mints a short-lived token that names one organization and one analysis, and it signs that token with a key only the API holds. The agent carries the token to the API, and the API checks it on every request. Repository text can contain instructions, and those must not change what the agent is allowed to read. A tampered, expired or foreign token reads nothing.
 
-The deciding requirement is interaction latency. Selecting, expanding and highlighting must respond immediately, and the graph canvas runs in the browser regardless. React has the deepest set of graph-canvas and layout libraries with first-class integration, and this is a dense tool with many panels whose state has to be managed carefully. Vite is used because the server is Python, so a server-rendering framework would add a second server with no purpose.
+The agent's instructions define its behaviour. It answers only from lookups, and every answer shows the lookups it made before the answer. It does not infer a connection from a name or a convention. It does not judge quality, security, performance or style, because the dependency map cannot show those, and it says what it can answer instead. A failed lookup returns an explicit failure, never a plausible answer.
 
-The cost is two languages. It is contained by generating TypeScript types from the API's schema, so every data shape is defined once, in the Python models.
+The agent is self-hosted in the project's own container. It is not deployed to a vendor-managed runtime, so no repository content is held outside the project's control beyond what the observability backend receives.
 
-Graph arithmetic lives in TypeScript and nowhere else. The browser receives the edge list once per analysis and computes fan-in, fan-out, blast radius and chains with pure functions. Python does not repeat that arithmetic.
+## Evaluation
+
+Quality is measured with three kinds of evaluator. Each one answers a different question, and the design is honest about which answers are exact.
+
+- **Invented paths.** Deterministic. Every path an explanation names is compared with the set of paths it was shown. This is set membership, with an exact answer, and it runs live on every explanation the system serves, cached or not. The check must reject a path that matches only the tail of a real one, and a path hidden behind spacing or formatting. Tests try to fool it on purpose.
+- **Role accuracy.** Deterministic ground truth. Roles that naming conventions already determine are the expected answers. The classifier is shown the file without its own convention label, and only the roles it is allowed to return are scored. A file that imports itself must never have its own label in the neighbour list, because that would give the model the answer.
+- **Prompt comparison.** The same dataset is run through two prompt versions, and the results are scored side by side, so a change to a prompt is judged by a number.
+
+Some quality questions have no exact answer. Whether an explanation is specific enough is judged by a model, and the results are reported as judgments, not as facts. A judged score is never presented as harder than it is.
+
+Evaluation datasets are built only when every example has been created. An incomplete dataset is removed rather than reused.
+
+## Observability
+
+Instrumentation uses OpenTelemetry, which is vendor-neutral. Traces are exported to LangSmith, which is the first backend and is used for traces and for experiments.
+
+Traces contain repository content, because prompts include file source and outputs echo it. Before any repository content is sent to a backend, the data region of that backend must be confirmed against the project's requirements, and the retention period must be known. Until both are confirmed, tracing runs only against local content.
+
+Every model call is traced. The cache lookup happens inside the trace, as described in the explanations section.
+
+## Authentication
+
+Clerk handles identity and organizations: sign-in through GitHub, Google and email, organization creation, invitations, and the roles owner, admin and member. Custom roles are not part of this version.
+
+Sign-in is for identity only. The GitHub sign-in requests no repository scope, and no user token is stored.
+
+Organization memberships are optional at first sign-in. A person with no organization gets one created for them. A person who was invited joins the invited organization.
+
+Authorization is not Clerk's job. Clerk establishes who a person is. The database decides what that person may read.
+
+The session token may carry the organization's name so that the workspace title can render on the first paint. That name is display only and is never used for authorization.
+
+**Revocation is the point that must be right.** An organization claim carried inside a signed token goes stale. Removing someone would take effect only when their token refreshed. So membership is mirrored into the database. Clerk's organization events arrive by webhook, and the API writes them into a membership table. Row-level policies check that table on every query, not the token. Removal takes effect as soon as the webhook is processed.
 
 ## Database
 
@@ -175,32 +269,24 @@ Postgres is used because the requirements are Postgres features: organizations, 
 
 Row-level security is enabled on every table, with explicit policies. Column privileges hide internal fields from the API role. No view exposes rows without a policy. Application code cannot widen access, because it cannot bypass the policy.
 
-The API verifies the user's token against Clerk's published keys, checking signature, issuer and expiry. It then runs that request's queries as that user, inside a transaction that sets the role and the token claims. Policies therefore apply to every read and write it makes. Supabase's third-party auth integration with Clerk makes the user's identity available to the policies. The exact setup is confirmed against Supabase's documentation when the database phase begins.
+An automated test enumerates every table in every exposed schema and fails if any table has row-level security disabled, or if any role holds a privilege outside an explicit allow-list.
+
+The API verifies the user's token against Clerk's published keys, checking signature, issuer and expiry. It then runs that request's queries as that user, inside a transaction that sets the role and the token claims. Policies therefore apply to every read and write it makes. The exact integration with Supabase is confirmed against its documentation when the database phase begins.
 
 The API never holds a Supabase service-level credential. That credential bypasses row-level policies, so holding it in a running application would make authorization depend on application code again. The migration runner is the only process with elevated database access, and its credential is never present in the running application's environment.
 
-The membership sync writes through a narrow database role that can touch only the membership table. It is not the application role and not the service credential.
+The membership sync writes through a narrow database role that can touch only the membership table.
 
-The API holds one Clerk secret: the webhook signing secret. It verifies that membership events really came from Clerk and grants no data access.
+The API holds two secrets of its own. The first is the Clerk webhook signing secret, which verifies that membership events came from Clerk and grants no data access. The second is the key that signs agent tokens, which lets the API prove that a token was issued by the API and names an analysis the person may read.
 
-All database connections come from one connection factory. A check fails if any other code opens a connection. The rule holds because the only way to get a connection is through the factory, not because each change remembers it.
-
-## Explanation and the agent
-
-The agent is a typed, Python-native framework, such as Pydantic AI. Graph lookups are exposed to the model as tools, each returning data from the analysis. The model cannot construct an edge. Every answer is built from tool results, and the trace records each lookup.
-
-A chat answer shows its lookups before the answer itself. An answer that arrives with no lookups behind it is the exact failure this product exists to prevent, so it counts as a failure. An automated check confirms that every explanation names only files present in the input.
-
-## Observability
-
-Instrumentation uses OpenTelemetry, which is vendor-neutral, so the tracing backend is chosen by configuration and can change without touching code. Every model call is traced, and the cache lookup happens inside the trace.
+All database connections come from one connection factory. A check fails if any other code opens a connection.
 
 ## Environment
 
-Configuration is defined by the environment template in the project, with these rules:
+Configuration is defined by the environment template in the project. Its rules:
 
 - The frontend reads only variables with the public prefix, and only public values use it. A secret never carries that prefix.
-- The API process reads only its own section.
+- Each service reads only its own section.
 - The migration credential is never loaded by the running application.
 - Every variable is documented where it is defined.
 
@@ -208,45 +294,54 @@ Configuration is defined by the environment template in the project, with these 
 
 These are settled. An agent working on the project may propose a change in writing and must not make it.
 
-- The authentication provider, the policy on any table, the grants on any role, and the rule that the API holds no Supabase service-level credential.
-- The membership sync, including the narrow role that writes it, and the rule that membership is read from the table, never from token claims.
+- The authentication provider, the policy on any table, the grants on any role, the membership sync, and the rule that the API holds no Supabase service-level credential.
+- The signing key for agent tokens, its lifetime, and the rule that the agent holds no signing key.
+- The edge rule and resolver semantics, per language, including which references are reported as unresolved.
+- The four framework adapters in version 1, and the exactness rule each one follows.
+- The TypeScript resolver as the authority for TypeScript and JavaScript resolution, and its pinned version.
 - Adding, removing or upgrading a dependency. This is enforced through the agent tool's permission settings, not only by instruction.
-- The edge rule and resolver semantics: what counts as an edge and what is reported as unresolved, per language.
 - Environment variable names, and which of them are secret.
-- The accessibility standard (WCAG 2.2 AA), the rule that colour is never the only signal, and the palette's colour-vision requirements.
-- What the API exposes: its routes, the fields it returns, and what each route may do.
+- What the API exposes: its routes, the fields it returns and what each route may do.
 - The checks. A check is never disabled, skipped or loosened to make a change pass. A check that cannot run fails loudly.
 - The connection factory and the model-client module. No other code opens database connections or calls a model.
+- The accessibility standard, the rule that colour is never the only signal, and the palette's colour-vision requirements.
+- The rule that a run's status can be changed only by the run that owns it.
 
 ## Open items, to decide at their phase
 
 - The UI component kit, chosen in the frontend phase.
-- The tracing backend, chosen by configuration when observability is built.
-- The retention policy for stored analyses.
-- Which framework adapter, if any, comes first.
+- The retention period for stored analyses and traces.
+- The default build context for Go and the default import root for Python, confirmed against real repositories.
+- The exact folding threshold, tuned against real repositories.
 
 ## What has to be true before this ships
 
 These are checked by hand or by script, never assumed.
 
-- Pointed at a known repository, five files checked by hand match what the parser claims they import, in each language the repository uses.
-- Coverage states what was skipped and why, and the numbers are believable.
-- Signed in from a different organization, the first organization's rows do not come back from the query at all. This is verified by querying as that user, not by reading the code.
-- A user removed from an organization loses access on their next request. This is verified by a test that removes a member and makes a request.
+- On a known repository, five files checked by hand match what the parser reports as their imports, in each language the repository uses.
+- Coverage states what was skipped and why, and its numbers are believable. A graph that is nearly empty while coverage reads complete fails this check.
+- A user in one organization cannot read or write rows belonging to another. This is verified by querying as that user, not by reading the code.
+- A user removed from an organization loses access on their next request, verified by a test that removes a member and makes a request.
 - Every table in the schema has row-level security enabled, and the automated test covers every exposed table.
-- The API process contains no Supabase service-level credential, verified by a check on its environment and code.
-- An explanation never names a file absent from the repository, and that is demonstrated by a check rather than asserted.
-- The chat panel shows what it looked up before it answers.
-- Automated accessibility checks report no serious or critical violations on every screen.
-- The contrast check passes for both palettes, for text and for meaningful graphics.
-- The core flow, from opening a repository to reading an explanation, can be completed by keyboard alone, with focus visible throughout.
-- The map is reviewed under colour-vision simulation, and a greyscale capture still shows direction and selection without colour.
+- No service in the system holds a Supabase service-level credential, verified by a check on its environment and code.
+- A tampered, expired or foreign agent token reads nothing.
+- A slow run's failure cannot overwrite a newer run's status, verified by a test that runs both.
+- An analysis from an earlier parser version is marked stale.
+- The invented-path check rejects a path that matches only the tail of a real one, and a path hidden behind formatting.
+- An explanation never names a file absent from the repository.
+- Each framework adapter's fixtures show a literal route as present and a composed route as absent, with the reason in the coverage report.
+- The chat panel shows its lookups before any answer.
+- Every interactive element can be operated by keyboard, every screen passes the automated accessibility check, and the map is readable in greyscale.
 - Parsing a large repository in the background does not block the interface.
 
 ## Where this is likely to go wrong
 
-**Folding folders into readable boxes.** A large repository has to collapse into something legible, and the threshold has to be solved for rather than guessed. Expect at least one wrong answer here before a right one.
+**Silent resolution failure.** A repository that uses barrel files, aliases or unusual layouts can lose most of its edges without any visible error. Unresolved counts are shown prominently, because a tidy picture that is quietly wrong is worse than an untidy one that admits its gaps.
 
-**Import resolution.** Path aliases, index files, re-exports, barrels. The risk isn't failure. It's silent failure. A repository built on barrel files loses most of its edges and still renders a clean, confident, wrong picture. This is the one place where loud reporting wins over a tidy interface.
+**Folding large graphs.** The two-file threshold works on typical repositories and will be wrong on some. Expect to tune it.
 
-**Measuring whether the AI output is any good.** Reading a few outputs and judging them fine is not measurement. The requirement is that answer quality becomes a number. The method for producing that number is genuinely open, and it is the least settled part of this plan.
+**Measuring AI quality.** Reading a few outputs and judging them good is not measurement. Answer quality needs a number, and some parts of that number are judgments by a model. Those are reported as judgments.
+
+**Repository text reaching the model as instructions.** Source files can contain text that tries to change what the agent does. The agent's access is set by a token the model cannot change, and its instructions say to ignore instructions found in repository content. Both rules must hold together.
+
+**Traces holding repository content.** Observability is valuable, and it also copies code to a second place. Region and retention must be confirmed before tracing is enabled against real repositories.
