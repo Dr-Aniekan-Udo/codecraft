@@ -7,7 +7,9 @@ authors = [
     { name = "Dr-Aniekan-Udo", email = "aniekanetimudo@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "psycopg[binary,pool]>=3.3.8",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.28,<0.12.0"]

@@ -1,25 +1,18 @@
-import { Show, SignInButton, SignUpButton, UserButton } from '@clerk/react'
+import { Navigate, Route, Routes } from 'react-router'
+import { ProtectedLayout } from './auth/ProtectedLayout'
+import { SignInPage } from './auth/SignInPage'
+import { SignUpPage } from './auth/SignUpPage'
+import { HomePage } from './pages/HomePage'
 
-function App() {
+export default function App({ apiUrl }: { apiUrl: string }) {
   return (
-    <header
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        gap: '0.5rem',
-        padding: '0.75rem 1rem',
-      }}
-    >
-      <Show when="signed-out">
-        <SignInButton />
-        <SignUpButton />
-      </Show>
-      <Show when="signed-in">
-        <UserButton />
-      </Show>
-    </header>
+    <Routes>
+      <Route path="/sign-in/*" element={<SignInPage />} />
+      <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route path="/" element={<ProtectedLayout />}>
+        <Route index element={<HomePage apiUrl={apiUrl} />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
-
-export default App

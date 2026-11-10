@@ -65,6 +65,10 @@ A phase is done only when every check in the directories it touches passes. Any 
 - Some checks are mine to run: anything needing a browser, a live GitHub connection, a real Supabase project, or a real tracing backend. When the code is ready for those, say so and state exactly what I should check.
 - When a phase passes its checks, report what it does and what I should check. Then wait. I decide whether to commit, when to open a pull request, and when to start the next phase.
 
+## Subagents
+
+- Every subagent works only inside this repository. Do not read, write or request access to parent, sibling or other external directories. If a task appears to need one, stop and ask.
+
 ## Asking questions
 
 Ask one question at a time. Give two or three labelled options, mark the one you recommend, and give the reason in one sentence. For example: "A) keep the current approach, B) switch to X. I recommend A because it keeps the boundary check passing without an exception." Never pick a direction silently and never build both.
