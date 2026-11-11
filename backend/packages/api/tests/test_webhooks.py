@@ -6,10 +6,11 @@ import time
 from typing import cast
 
 import httpx
+import pytest
 from codecraft_api.app import create_app
 from codecraft_api.config import Settings
 from codecraft_api.token_verifier import VerifiedToken
-from codecraft_storage import DatabaseLike
+from codecraft_storage import AnalysisSummary, DatabaseLike
 from fastapi.testclient import TestClient
 
 _SECRET = "whsec_" + base64.b64encode(b"test-signing-secret").decode()
@@ -19,13 +20,24 @@ class FakeDatabase:
     def __init__(self) -> None:
         self.upserts: list[tuple[str, str]] = []
         self.deletes: list[tuple[str, str]] = []
+        self.team_deletes: list[str] = []
+        self.is_member_calls: list[tuple[str, str]] = []
+        self.list_analyses_calls: list[tuple[str, str]] = []
 
     async def open(self) -> None: ...
 
     async def close(self) -> None: ...
 
     async def is_member(self, user_id: str, team_id: str) -> bool:
+        self.is_member_calls.append((user_id, team_id))
         return False
+
+    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]:
+        self.list_analyses_calls.append((user_id, team_id))
+        return []
+
+    async def delete_team(self, team_id: str) -> None:
+        self.team_deletes.append(team_id)
 
     async def upsert_membership(self, user_id: str, team_id: str) -> None:
         self.upserts.append((user_id, team_id))
@@ -85,6 +97,10 @@ def _payload(event_type: str, user_id: str = "user_1", team_id: str = "org_1") -
     return json.dumps(document).encode()
 
 
+def _team_deleted_payload(data: dict[str, object]) -> bytes:
+    return json.dumps({"type": "organization.deleted", "data": data}).encode()
+
+
 def test_created_event_upserts_membership() -> None:
     database = FakeDatabase()
     body = _payload("organizationMembership.created")
@@ -135,6 +151,49 @@ def test_other_event_type_is_ignored() -> None:
     assert response.status_code == 204
     assert database.upserts == []
     assert database.deletes == []
+    assert database.team_deletes == []
+
+
+def test_team_deleted_event_deletes_team() -> None:
+    database = FakeDatabase()
+    body = _team_deleted_payload({"id": "org_1"})
+    with _client(database) as client:
+        response = client.post("/webhooks/clerk", content=body, headers=_headers(body))
+    assert response.status_code == 204
+    assert database.team_deletes == ["org_1"]
+    assert database.upserts == []
+    assert database.deletes == []
+
+
+def test_team_deleted_event_with_no_rows_still_succeeds() -> None:
+    # The fake reports success without removing anything, which is what the
+    # routine does for a team identifier that matches no rows.
+    database = FakeDatabase()
+    body = _team_deleted_payload({"id": "org_without_rows"})
+    with _client(database) as client:
+        response = client.post("/webhooks/clerk", content=body, headers=_headers(body))
+    assert response.status_code == 204
+    assert database.team_deletes == ["org_without_rows"]
+
+
+def test_team_deleted_event_with_invalid_signature_writes_nothing() -> None:
+    database = FakeDatabase()
+    signed_body = _team_deleted_payload({"id": "org_1"})
+    headers = _headers(signed_body)
+    with _client(database) as client:
+        response = client.post("/webhooks/clerk", content=signed_body + b" ", headers=headers)
+    assert response.status_code == 401
+    assert database.team_deletes == []
+
+
+@pytest.mark.parametrize("data", [{}, {"id": ""}])
+def test_team_deleted_event_without_identifier_is_rejected(data: dict[str, object]) -> None:
+    database = FakeDatabase()
+    body = _team_deleted_payload(data)
+    with _client(database) as client:
+        response = client.post("/webhooks/clerk", content=body, headers=_headers(body))
+    assert response.status_code == 400
+    assert database.team_deletes == []
 
 
 def test_missing_signature_headers_are_refused() -> None:

@@ -8,7 +8,10 @@ can accidentally open a connection that skips those claims.
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 from psycopg import AsyncConnection, OperationalError
 from psycopg_pool import AsyncConnectionPool
@@ -30,6 +33,15 @@ _POOL_MAX_LIFETIME_SECONDS = 300.0
 _CONNECTION_LOST_SQLSTATES = frozenset({"08003", "08006"})
 
 
+@dataclass(frozen=True)
+class AnalysisSummary:
+    id: UUID
+    project_name: str
+    state: str
+    created_at: datetime
+    is_sample: bool
+
+
 def _is_connection_lost(error: OperationalError) -> bool:
     return (
         error.sqlstate in _CONNECTION_LOST_SQLSTATES
@@ -38,13 +50,33 @@ def _is_connection_lost(error: OperationalError) -> bool:
 
 
 async def _retry_closed_connection(operation: Callable[[], Awaitable[None]]) -> None:
-    """Retry one membership write when the pooled connection was already closed."""
+    """Retry one idempotent write when the pooled connection was already closed."""
     try:
         await operation()
     except OperationalError as error:
         if not _is_connection_lost(error):
             raise
         await operation()
+
+
+def _analysis_summary(row: tuple[object, ...]) -> AnalysisSummary:
+    """Reject a row whose columns are not the types the query promised."""
+    analysis_id, project_name, state, created_at, is_sample = row
+    if (
+        not isinstance(analysis_id, UUID)
+        or not isinstance(project_name, str)
+        or not isinstance(state, str)
+        or not isinstance(created_at, datetime)
+        or not isinstance(is_sample, bool)
+    ):
+        raise TypeError("unexpected column type in analyses query")
+    return AnalysisSummary(
+        id=analysis_id,
+        project_name=project_name,
+        state=state,
+        created_at=created_at,
+        is_sample=is_sample,
+    )
 
 
 def _make_pool(
@@ -71,6 +103,10 @@ class DatabaseLike(Protocol):
     async def close(self) -> None: ...
 
     async def is_member(self, user_id: str, team_id: str) -> bool: ...
+
+    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]: ...
+
+    async def delete_team(self, team_id: str) -> None: ...
 
     async def upsert_membership(self, user_id: str, team_id: str) -> None: ...
 
@@ -147,6 +183,37 @@ class Database:
             )
             row = await cursor.fetchone()
             return row is not None and bool(row[0])
+
+    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]:
+        # The select policies on analyses and projects decide what this person
+        # can see, so no membership check is repeated here.
+        async with self.request_connection(user_id) as connection:
+            cursor = await connection.execute(
+                """
+                select a.id, p.name as project_name, a.state, a.created_at, a.is_sample
+                from public.analyses as a
+                join public.projects as p on p.id = a.project_id and p.team_id = a.team_id
+                where a.team_id = %s
+                order by a.created_at desc, a.id desc
+                limit 50
+                """,
+                (team_id,),
+            )
+            rows = await cursor.fetchall()
+        return [_analysis_summary(row) for row in rows]
+
+    async def delete_team(self, team_id: str) -> None:
+        # The sync role holds no table privilege, so the routine is the only way
+        # it can remove a deleted team's rows. Deleting twice is harmless.
+        async def delete() -> None:
+            async with self.membership_sync_connection() as connection:
+                cursor = await connection.execute(
+                    "select * from public.delete_team_rows(%s)",
+                    (team_id,),
+                )
+                await cursor.fetchall()
+
+        await _retry_closed_connection(delete)
 
     async def upsert_membership(self, user_id: str, team_id: str) -> None:
         async def write() -> None:

@@ -6,7 +6,7 @@ import jwt
 from codecraft_api.app import create_app
 from codecraft_api.config import Settings
 from codecraft_api.token_verifier import TokenVerifier
-from codecraft_storage import DatabaseLike
+from codecraft_storage import AnalysisSummary, DatabaseLike
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from jwt.algorithms import RSAAlgorithm
@@ -31,6 +31,9 @@ class FakeDatabase:
     def __init__(self) -> None:
         self.memberships: set[tuple[str, str]] = set()
         self.is_member_calls: list[tuple[str, str]] = []
+        self.list_analyses_calls: list[tuple[str, str]] = []
+        self.analyses: list[AnalysisSummary] = []
+        self.team_deletes: list[str] = []
         self.upserts: list[tuple[str, str]] = []
         self.deletes: list[tuple[str, str]] = []
 
@@ -41,6 +44,13 @@ class FakeDatabase:
     async def is_member(self, user_id: str, team_id: str) -> bool:
         self.is_member_calls.append((user_id, team_id))
         return (user_id, team_id) in self.memberships
+
+    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]:
+        self.list_analyses_calls.append((user_id, team_id))
+        return self.analyses
+
+    async def delete_team(self, team_id: str) -> None:
+        self.team_deletes.append(team_id)
 
     async def upsert_membership(self, user_id: str, team_id: str) -> None:
         self.upserts.append((user_id, team_id))

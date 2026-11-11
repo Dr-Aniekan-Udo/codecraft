@@ -1,6 +1,9 @@
+from datetime import datetime
+from uuid import UUID
+
 from codecraft_storage import DatabaseLike
-from fastapi import APIRouter, HTTPException, Request, Response, status
-from pydantic import BaseModel, ValidationError
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from codecraft_api.config import Settings
@@ -13,6 +16,7 @@ from codecraft_api.webhook import WebhookVerificationError, verify_webhook_signa
 
 _MEMBERSHIP_CREATED = "organizationMembership.created"
 _MEMBERSHIP_DELETED = "organizationMembership.deleted"
+_TEAM_DELETED = "organization.deleted"
 
 
 class MeResponse(BaseModel):
@@ -20,8 +24,29 @@ class MeResponse(BaseModel):
     team_id: str
 
 
+class AnalysisResponse(BaseModel):
+    id: UUID
+    project_name: str
+    state: str
+    created_at: datetime
+    is_sample: bool
+
+
+class AnalysesResponse(BaseModel):
+    analyses: list[AnalysisResponse]
+
+
 class _EventEnvelope(BaseModel):
     type: str
+
+
+class _TeamData(BaseModel):
+    id: str = Field(min_length=1)
+
+
+class _TeamDeletedEvent(BaseModel):
+    type: str
+    data: _TeamData
 
 
 class _Organization(BaseModel):
@@ -92,6 +117,28 @@ def create_router(
             )
         return MeResponse(user_id=token.user_id, team_id=token.team_id)
 
+    @router.get("/v1/analyses", response_model=AnalysesResponse)
+    async def list_analyses(
+        request: Request,
+        team_id: str = Query(min_length=1),
+    ) -> AnalysesResponse:
+        token = await _verified_token(request, verifier)
+        # The token's active team is not consulted: the person may switch teams,
+        # and the database policy decides which rows the query can return.
+        summaries = await database.list_analyses(token.user_id, team_id)
+        return AnalysesResponse(
+            analyses=[
+                AnalysisResponse(
+                    id=summary.id,
+                    project_name=summary.project_name,
+                    state=summary.state,
+                    created_at=summary.created_at,
+                    is_sample=summary.is_sample,
+                )
+                for summary in summaries
+            ]
+        )
+
     @router.post(
         "/webhooks/clerk",
         status_code=status.HTTP_204_NO_CONTENT,
@@ -123,6 +170,18 @@ def create_router(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid webhook payload",
             ) from None
+
+        if envelope.type == _TEAM_DELETED:
+            try:
+                team_event = _TeamDeletedEvent.model_validate_json(body)
+            except ValidationError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid webhook payload",
+                ) from None
+
+            await database.delete_team(team_event.data.id)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
 
         if envelope.type not in (_MEMBERSHIP_CREATED, _MEMBERSHIP_DELETED):
             return Response(status_code=status.HTTP_204_NO_CONTENT)
