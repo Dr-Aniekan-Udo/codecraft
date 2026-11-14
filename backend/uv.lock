@@ -228,6 +228,7 @@ dependencies = [
     { name = "codecraft-storage" },
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic-settings" },
@@ -240,6 +241,7 @@ requires-dist = [
     { name = "codecraft-storage", editable = "packages/storage" },
     { name = "cryptography", specifier = ">=50.0.2" },
     { name = "fastapi", specifier = ">=0.162.2" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.45.2" },
     { name = "opentelemetry-sdk", specifier = ">=1.45.2" },
     { name = "pydantic-settings", specifier = ">=2.16.2" },
@@ -308,7 +310,6 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "import-linter" },
     { name = "pyright" },
     { name = "pytest" },
@@ -319,7 +320,6 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
     { name = "import-linter", specifier = ">=2.16" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.2.0" },

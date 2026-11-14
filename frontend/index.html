@@ -7,6 +7,22 @@
     <meta name="description" content="CodeCraft maps how a codebase depends on itself." />
     <title>CodeCraft</title>
     <script>
+      // The invitation ticket must not be consumed by Clerk on page load.
+      // Seeing the invitation is not accepting it; the page exposes an explicit
+      // Accept button. Remove the ticket before the Clerk provider starts.
+      ;(function () {
+        var url = new URL(window.location.href)
+        if (
+          url.searchParams.has('__clerk_ticket') ||
+          url.searchParams.has('__clerk_status')
+        ) {
+          url.searchParams.delete('__clerk_ticket')
+          url.searchParams.delete('__clerk_status')
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+        }
+      })()
+    </script>
+    <script>
       ;(function () {
         var preference = 'system'
         try {
