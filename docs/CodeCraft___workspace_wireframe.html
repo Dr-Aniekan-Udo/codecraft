@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CodeCraft — workspace wireframe</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --text: #000000;
+        --muted: rgba(0, 0, 0, 0.72);
+        --border: rgba(0, 0, 0, 0.45);
+        --strong: rgba(0, 0, 0, 0.55);
+        --surface: rgba(0, 0, 0, 0.035);
+        --incoming: #0072b2;
+        --outgoing: #d55e00;
+        --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #d8d8d8; font-family: var(--sans); color: var(--text); font-size: 13px; line-height: 1.4; }
+      .frame { width: 1440px; margin: 0 auto; background: var(--bg); border: 1px solid var(--strong); }
+      .app { height: 900px; display: flex; flex-direction: column; position: relative; }
+      .header { height: 44px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--border); }
+      .org { display: flex; align-items: center; min-width: 0; height: 28px; border: 1px solid var(--strong); border-radius: 6px; overflow: hidden; }
+      .org a { display: inline-flex; align-items: center; height: 100%; padding: 0 7px; font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); text-decoration: none; }
+      .org-chev { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 7px; border: 0; border-left: 1px solid var(--strong); background: transparent; color: var(--muted); font: inherit; font-size: 10px; cursor: pointer; }
+      .brand { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; margin-right: 2px; }
+      .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .hact { height: 28px; display: inline-flex; align-items: center; padding: 0 2px; border-bottom: 1px solid var(--strong); font-size: 11px; white-space: nowrap; }
+      .badge { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+      .iconbtn { position: relative; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid var(--strong); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+      .count-badge { position: absolute; top: -4px; right: -4px; min-width: 13px; height: 13px; padding: 0 3px; display: grid; place-items: center; border-radius: 7px; background: var(--text); color: var(--bg); font-family: var(--mono); font-size: 8px; line-height: 1; }
+      .iconbtn svg { width: 14px; height: 14px; display: block; }
+      .invite { height: 28px; display: inline-flex; align-items: center; padding: 0 11px; border: 1px solid var(--text); border-radius: 6px; background: var(--text); color: var(--bg); font: inherit; font-size: 11px; cursor: pointer; }
+      .theme-wrap { position: relative; display: flex; align-items: center; }
+      .tooltip { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); padding: 2px 6px; border: 1px solid var(--strong); border-radius: 4px; background: var(--bg); font-size: 9px; white-space: nowrap; color: var(--text); z-index: 2; }
+      .avatar { width: 24px; height: 24px; padding: 0; border: 1px solid var(--strong); border-radius: 50%; display: grid; place-items: center; background: transparent; color: var(--text); cursor: pointer; }
+      .avatar svg { width: 13px; height: 13px; display: block; }
+      .grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 3fr 8fr 4fr; }
+      .rail { min-width: 0; padding: 12px; border-right: 1px solid var(--border); overflow: hidden; }
+      .center { min-width: 0; padding: 14px 20px 12px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+      .pane { min-width: 0; padding: 14px; overflow: hidden; }
+      .label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+      .rail-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 0 6px; border-bottom: 1px solid var(--strong); font-size: 11px; font-weight: 600; }
+      .rail-heading .count { font-family: var(--mono); font-size: 10px; font-weight: 400; color: var(--muted); }
+      .analysis-card { margin-top: 6px; padding: 9px 10px 9px 12px; border-left: 2px solid var(--text); border-radius: 4px; background: var(--surface); overflow: hidden; }
+      .analysis-card .name { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+      .analysis-card .meta { margin-top: 2px; font-size: 11px; color: var(--muted); }
+      .rail-note { margin-top: 5px; font-size: 9px; color: var(--muted); }
+      .analysis-list { list-style: none; margin: 4px 0 0; padding: 0; }
+      .analysis-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6px 0 6px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; }
+      .analysis-list li span { font-family: var(--sans); color: var(--muted); font-size: 10px; }
+      .analysis-list li.sel { border-left: 2px solid var(--text); padding-left: 10px; background: var(--surface); }
+      .later { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--border); }
+      .later-tag { display: inline-block; margin-bottom: 4px; padding: 0 3px; border: 1px dashed var(--border); font-size: 9px; color: var(--muted); }
+      .metric { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+      .metric span:last-child { font-family: var(--mono); color: var(--muted); }
+      .search { height: 28px; margin: 4px 0 4px; border: 1px solid var(--strong); border-radius: 4px; display: flex; align-items: center; padding: 0 7px; color: var(--muted); font-size: 11px; }
+      .cat { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 11px; }
+      .cat .n { font-family: var(--mono); color: var(--muted); }
+      .crumb { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 10px; color: var(--muted); }
+      .crumb .right { font-family: var(--mono); font-size: 10px; color: var(--text); border-bottom: 1px solid var(--strong); }
+      h1 { margin: 0; font-size: 22px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 600; }
+      h1 .count { margin-left: 8px; font-family: var(--mono); font-size: 12px; font-weight: 400; color: var(--muted); }
+      .metrics { display: flex; gap: 14px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+      .work { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+      .now-strip { border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; }
+      .now-strip .head { display: flex; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-size: 10px; color: var(--muted); }
+      .now-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; }
+      .now-row:last-child { border-bottom: 0; }
+      .now-row span:last-child { font-family: var(--sans); color: var(--muted); }
+      .map { flex: 1; min-height: 0; position: relative; border: 1px dashed var(--border); border-radius: 4px; background-image: linear-gradient(rgba(0,0,0,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.045) 1px, transparent 1px); background-size: 24px 24px; }
+      .map-tag { position: absolute; top: 8px; left: 10px; font-size: 9px; color: var(--muted); background: var(--bg); padding: 1px 4px; border: 1px dashed var(--border); }
+      .node { position: absolute; min-width: 100px; padding: 5px 7px; border: 1px solid var(--strong); background: var(--bg); font-family: var(--mono); font-size: 9px; line-height: 1.25; }
+      .node small { display: block; font-family: var(--sans); font-size: 8px; color: var(--muted); }
+      .node.sel { border-left: 3px solid var(--text); }
+      .legend { display: flex; gap: 16px; align-items: center; font-size: 9px; color: var(--muted); }
+      .legend i { display: inline-block; width: 18px; height: 0; border-top: 1px solid var(--incoming); vertical-align: middle; margin-right: 4px; }
+      .legend .out i { border-top: 1px dashed var(--outgoing); }
+      .pane-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+      .pane-title strong { font-size: 11px; }
+      .pane-title .x { font-size: 14px; color: var(--muted); }
+      .facts { margin: 8px 0 0; }
+      .fact { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border); }
+      .fact dt { font-size: 11px; color: var(--muted); }
+      .fact dd { margin: 0; text-align: right; font-size: 12px; }
+      .fact dd.mono { font-family: var(--mono); font-size: 11px; }
+      .square { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border: 1px solid var(--text); background: var(--text); vertical-align: -1px; }
+      .later-pane { margin-top: 16px; padding-top: 10px; border-top: 1px dashed var(--border); }
+      .dashbox { margin-top: 6px; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 4px; font-size: 11px; color: var(--muted); }
+      .tabs { display: flex; gap: 10px; margin-top: 8px; font-size: 10px; color: var(--muted); }
+      .tabs .on { color: var(--text); border-bottom: 2px solid var(--text); padding-bottom: 3px; }
+      .ratio { position: absolute; bottom: 4px; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+      .ratio.r1 { left: 12px; } .ratio.r2 { left: 38%; } .ratio.r3 { right: 12px; }
+      .notes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 12px; border-top: 1px solid var(--strong); background: #f7f7f7; font-size: 11px; }
+      .notes b { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 4px; border: 1px solid var(--text); border-radius: 50%; font-family: var(--mono); font-size: 9px; }
+      .note-title { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+      .note-foot { grid-column: 1 / -1; padding-top: 6px; border-top: 1px dashed var(--border); color: var(--muted); font-size: 10px; }
+      .illus { position: absolute; top: 6px; right: 20px; font-size: 9px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <div class="app">
+        <header class="header">
+          <span class="brand">CodeCraft</span>
+          <div class="org">
+            <a href="#" aria-label="Organisation root">codecraft</a>
+            <button class="org-chev" type="button" aria-label="Switch organisation">▾</button>
+          </div>
+          <div class="header-actions">
+            <button class="iconbtn" type="button" aria-label="Invitations, 2 pending" title="Invitations, 2 pending">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                <rect x="2" y="3.5" width="12" height="9" rx="1" />
+                <path d="M2.5 4.5 8 8.5l5.5-4" />
+              </svg>
+              <span class="count-badge" aria-hidden="true">2</span>
+            </button>
+            <button class="iconbtn" type="button" aria-label="Organisations" title="Organisations">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                <path d="M2.5 4h2.2M7.3 4h6.2M2.5 8h6.8M11.9 8h1.6M2.5 12h2.2M7.3 12h6.2" />
+                <circle cx="6" cy="4" r="1.2" />
+                <circle cx="10.6" cy="8" r="1.2" />
+                <circle cx="5.6" cy="12" r="1.2" />
+              </svg>
+            </button>
+            <span class="theme-wrap">
+              <button class="iconbtn" type="button" aria-label="Theme: Light. Activate to change the theme." title="Theme: Light">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                  <circle cx="8" cy="8" r="3" />
+                  <path d="M8 1.5v1.4M8 13.1v1.4M1.5 8h1.4M13.1 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1" />
+                </svg>
+              </button>
+              <span class="tooltip">Theme: Light</span>
+            </span>
+            <button class="avatar" type="button" aria-label="Account" title="Account">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                <circle cx="8" cy="5.5" r="2.4" />
+                <path d="M3.4 13.4c.5-2.2 2.3-3.6 4.6-3.6s4.1 1.4 4.6 3.6" />
+              </svg>
+            </button>
+            <button class="invite" type="button">Invite</button>
+          </div>
+        </header>
+
+        <div class="grid">
+          <nav class="rail">
+            <div class="label">Analysis <span class="count">3</span></div>
+            <div class="analysis-card">
+              <div class="name">codecraft-web</div>
+              <div class="meta">complete · 13 files · 15 links</div>
+            </div>
+            <div class="rail-note">Switch in the centre list</div>
+
+            <div class="later">
+              <span class="later-tag">later</span>
+              <div class="rail-heading">Coverage <span class="count">of selected analysis</span></div>
+              <div class="metric"><span>Parsed</span><span>12 of 13</span></div>
+              <div class="metric"><span>Skipped</span><span>1</span></div>
+              <div class="metric"><span>Unresolved</span><span>2</span></div>
+            </div>
+
+            <div class="later">
+              <span class="later-tag">later</span>
+              <div class="rail-heading">Explore <span class="count">of selected analysis</span></div>
+              <div class="search">Find a file…</div>
+              <div class="cat"><span>All files</span><span class="n">13</span></div>
+              <div class="cat"><span>Application</span><span class="n">3</span></div>
+              <div class="cat"><span>Interface</span><span class="n">4</span></div>
+              <div class="cat"><span>Analysis</span><span class="n">4</span></div>
+              <div class="cat"><span>Tests</span><span class="n">1</span></div>
+              <div class="cat"><span>Configuration</span><span class="n">1</span></div>
+            </div>
+            <div class="ratio r1">3</div>
+          </nav>
+
+          <main class="center">
+            <div class="crumb"><span>codecraft · illustrative workspace</span><span class="right">Connect a repository (later)</span></div>
+            <div class="illus">wireframe · content illustrative</div>
+            <h1>Analyses <span class="count">3</span></h1>
+            <div class="metrics"><span>3 analyses</span><span>15 links</span><span>1 skipped</span><span>deterministic layout</span></div>
+
+            <div class="now-strip">
+              <div class="head"><span>Now in this rect</span><span>analyses list / empty state</span></div>
+              <div class="now-row"><span>codecraft-web</span><span>complete · 13 files</span></div>
+              <div class="now-row"><span>api-service</span><span>running · 8 files</span></div>
+              <div class="now-row"><span>docs-site</span><span>failed</span></div>
+            </div>
+
+            <div class="map">
+              <span class="map-tag">Later in the same rect: dependency map</span>
+              <div class="node" style="left: 5%; top: 22%">main.tsx<small>entry</small></div>
+              <div class="node" style="left: 30%; top: 12%">Workspace.tsx<small>interface</small></div>
+              <div class="node sel" style="left: 48%; top: 52%">graphMath.ts<small>analysis · selected</small></div>
+              <div class="node" style="left: 72%; top: 28%">analyzer.ts<small>analysis</small></div>
+              <div class="node" style="left: 74%; top: 66%">repository.ts<small>data</small></div>
+              <div class="node" style="left: 22%; top: 70%">graphMath.test.ts<small>test</small></div>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%; overflow:visible">
+                <defs>
+                  <marker id="blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0072b2"/></marker>
+                  <marker id="red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#d55e00"/></marker>
+                </defs>
+                <line x1="17" y1="28" x2="30" y2="18" stroke="#0072b2" stroke-width="0.6" marker-end="url(#blue)"/>
+                <line x1="38" y1="18" x2="48" y2="52" stroke="#0072b2" stroke-width="0.6" marker-end="url(#blue)"/>
+                <line x1="58" y1="55" x2="72" y2="34" stroke="#d55e00" stroke-width="0.6" stroke-dasharray="2 1.4" marker-end="url(#red)"/>
+                <line x1="58" y1="58" x2="74" y2="68" stroke="#d55e00" stroke-width="0.6" stroke-dasharray="2 1.4" marker-end="url(#red)"/>
+                <line x1="48" y1="60" x2="22" y2="72" stroke="#0072b2" stroke-width="0.6" marker-end="url(#blue)"/>
+              </svg>
+            </div>
+
+            <div class="legend"><span><i></i>Incoming · solid</span><span class="out"><i></i>Outgoing · dashed</span><span>Folder folding</span><span style="margin-left:auto">100%</span></div>
+            <div class="ratio r2">8</div>
+          </main>
+
+          <aside class="pane">
+            <div class="pane-title"><strong>Overview</strong></div>
+            <div class="label" style="margin-top:10px">current item</div>
+            <dl class="facts">
+              <div class="fact"><dt>Organisation</dt><dd class="mono">codecraft</dd></div>
+              <div class="fact"><dt>Your role</dt><dd>Admin</dd></div>
+              <div class="fact"><dt>Membership</dt><dd><span class="square"></span>Confirmed</dd></div>
+            </dl>
+            <div class="later-pane">
+              <span class="later-tag">later · selected file</span>
+              <div class="dashbox">
+                src/analysis/graphMath.ts<br />
+                <span style="font-family:var(--mono);font-size:10px">TypeScript · 96 lines</span>
+                <div class="tabs"><span class="on">Overview</span><span>Structure</span><span>Explain</span><span>Ask</span></div>
+              </div>
+              <div class="metric" style="margin-top:6px"><span>Imports</span><span>02</span></div>
+              <div class="metric"><span>Imported by</span><span>03</span></div>
+              <div class="metric"><span>Blast radius</span><span>07</span></div>
+            </div>
+            <div class="ratio r3">4</div>
+          </aside>
+        </div>
+      </div>
+
+      <div class="notes">
+        <div><div class="note-title"><b>1</b> Header</div>Brand first, then one organisation selector: the name links to root, the chevron switches. Invitations is a message icon with an ink count badge, hidden when none; the accessible name states the count or that none are pending. Theme is one icon whose glyph follows System / Light / Dark; hover shows the type. Account avatar opens the current account menu.</div>
+        <div><div class="note-title"><b>2</b> Rail · 3</div>Context for the current organisation: selected analysis, all analyses, later coverage and explore/file categories. No “Analyses / Invitations” page list.</div>
+        <div><div class="note-title"><b>3</b> Centre · 8</div>The work area. The analyses list/empty state now; the map later in the same rect. Blue incoming, vermillion outgoing; shape and dash carry direction too.</div>
+        <div><div class="note-title"><b>4</b> Pane · 4</div>The inspector. Organisation, role and membership now; selected file, metrics and tabs later. Column widths stay 3 / 8 / 4.</div>
+        <div class="note-foot">No icon dependency was added. These are inline SVG glyphs (message, theme, settings, account). Controls are 6px radius, 1px border, no shadow; hover changes are instant, with no motion.</div>
+      </div>
+    </div>
+  </body>
+</html>

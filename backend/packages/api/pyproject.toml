@@ -11,6 +11,7 @@ dependencies = [
     "codecraft-storage",
     "cryptography>=50.0.2",
     "fastapi>=0.162.2",
+    "httpx>=0.28.1",
     "opentelemetry-exporter-otlp>=1.45.2",
     "opentelemetry-sdk>=1.45.2",
     "pydantic-settings>=2.16.2",

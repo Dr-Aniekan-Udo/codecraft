@@ -6,7 +6,14 @@ import httpx
 from codecraft_api.app import create_app
 from codecraft_api.config import Settings
 from codecraft_api.token_verifier import InvalidTokenError, VerifiedToken
-from codecraft_storage import AnalysisSummary, DatabaseLike
+from codecraft_storage import (
+    AnalysisDetail,
+    AnalysisSummary,
+    DatabaseLike,
+    OrganisationSummary,
+    ProjectDetail,
+    ProjectSummary,
+)
 from fastapi.testclient import TestClient
 
 _ANALYSIS_ID = UUID("11111111-1111-1111-1111-111111111111")
@@ -17,9 +24,9 @@ class FakeVerifier:
     def verify(self, token: str) -> VerifiedToken:
         if token != "valid-token":
             raise InvalidTokenError("token verification failed")
-        # A signed-in person with no active team must still be able to read the
-        # analyses of a team the database says they belong to.
-        return VerifiedToken(user_id="user_123", team_id=None)
+        # A signed-in person with no active organisation must still be able to read the
+        # analyses of an organisation the database says they belong to.
+        return VerifiedToken(user_id="user_123", organisation_id=None)
 
 
 class FakeDatabase:
@@ -27,26 +34,49 @@ class FakeDatabase:
         self.analyses = [] if analyses is None else analyses
         self.list_analyses_calls: list[tuple[str, str]] = []
         self.is_member_calls: list[tuple[str, str]] = []
-        self.team_deletes: list[str] = []
+        self.organisation_deletes: list[str] = []
 
     async def open(self) -> None: ...
 
     async def close(self) -> None: ...
 
-    async def is_member(self, user_id: str, team_id: str) -> bool:
-        self.is_member_calls.append((user_id, team_id))
+    async def is_member(self, user_id: str, organisation_id: str) -> bool:
+        self.is_member_calls.append((user_id, organisation_id))
         return False
 
-    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]:
-        self.list_analyses_calls.append((user_id, team_id))
+    async def list_organisations(self, user_id: str) -> list[OrganisationSummary]:
+        return []
+
+    async def is_owner(self, user_id: str, organisation_id: str) -> bool:
+        return False
+
+    async def has_other_owned_organisation(self, user_id: str, organisation_id: str) -> bool:
+        return False
+
+    async def has_other_organisation(self, user_id: str, organisation_id: str) -> bool:
+        return True
+
+    async def list_analyses(self, user_id: str, organisation_id: str) -> list[AnalysisSummary]:
+        self.list_analyses_calls.append((user_id, organisation_id))
         return self.analyses
 
-    async def delete_team(self, team_id: str) -> None:
-        self.team_deletes.append(team_id)
+    async def list_projects(self, user_id: str, organisation_id: str) -> list[ProjectSummary]:
+        return []
 
-    async def upsert_membership(self, user_id: str, team_id: str) -> None: ...
+    async def get_project(self, user_id: str, project_id: UUID) -> ProjectDetail | None:
+        return None
 
-    async def delete_membership(self, user_id: str, team_id: str) -> None: ...
+    async def get_analysis(self, user_id: str, analysis_id: UUID) -> AnalysisDetail | None:
+        return None
+
+    async def delete_organisation(self, organisation_id: str) -> None:
+        self.organisation_deletes.append(organisation_id)
+
+    async def upsert_membership(self, user_id: str, organisation_id: str) -> None: ...
+
+    async def set_owner(self, user_id: str, organisation_id: str) -> None: ...
+
+    async def delete_membership(self, user_id: str, organisation_id: str) -> None: ...
 
 
 def _settings() -> Settings:
@@ -55,6 +85,7 @@ def _settings() -> Settings:
         MEMBERSHIP_SYNC_DATABASE_URL="postgresql://sync@example/db",
         CLERK_JWT_ISSUER="https://clerk.example",
         CLERK_WEBHOOK_SIGNING_SECRET="whsec_c2VjcmV0",
+        CLERK_SECRET_KEY="sk_test_secret",
     )
 
 
@@ -79,7 +110,7 @@ def _assert_unauthorized(response: httpx.Response) -> None:
 def test_missing_token_is_refused() -> None:
     database = FakeDatabase()
     with _client(database) as client:
-        response = client.get("/v1/analyses", params={"team_id": "org_1"})
+        response = client.get("/v1/analyses", params={"organisation_id": "org_1"})
     _assert_unauthorized(response)
     assert database.list_analyses_calls == []
 
@@ -89,14 +120,14 @@ def test_invalid_token_is_refused() -> None:
     with _client(database) as client:
         response = client.get(
             "/v1/analyses",
-            params={"team_id": "org_1"},
+            params={"organisation_id": "org_1"},
             headers={"Authorization": "Bearer not-valid"},
         )
     _assert_unauthorized(response)
     assert database.list_analyses_calls == []
 
 
-def test_missing_team_id_is_rejected() -> None:
+def test_missing_organisation_id_is_rejected() -> None:
     database = FakeDatabase()
     with _client(database) as client:
         response = client.get("/v1/analyses", headers=_authorization())
@@ -104,10 +135,12 @@ def test_missing_team_id_is_rejected() -> None:
     assert database.list_analyses_calls == []
 
 
-def test_empty_team_id_is_rejected() -> None:
+def test_empty_organisation_id_is_rejected() -> None:
     database = FakeDatabase()
     with _client(database) as client:
-        response = client.get("/v1/analyses", params={"team_id": ""}, headers=_authorization())
+        response = client.get(
+            "/v1/analyses", params={"organisation_id": ""}, headers=_authorization()
+        )
     assert response.status_code == 422
     assert database.list_analyses_calls == []
 
@@ -125,7 +158,9 @@ def test_lists_analyses() -> None:
         ]
     )
     with _client(database) as client:
-        response = client.get("/v1/analyses", params={"team_id": "org_1"}, headers=_authorization())
+        response = client.get(
+            "/v1/analyses", params={"organisation_id": "org_1"}, headers=_authorization()
+        )
     assert response.status_code == 200
     body = response.json()
     assert list(body) == ["analyses"]
@@ -139,14 +174,14 @@ def test_lists_analyses() -> None:
     assert datetime.fromisoformat(item["created_at"]) == _CREATED_AT
 
 
-def test_team_id_is_passed_through() -> None:
+def test_organisation_id_is_passed_through() -> None:
     database = FakeDatabase()
     with _client(database) as client:
-        client.get("/v1/analyses", params={"team_id": "org_2"}, headers=_authorization())
+        client.get("/v1/analyses", params={"organisation_id": "org_2"}, headers=_authorization())
     assert database.list_analyses_calls == [("user_123", "org_2")]
 
 
-def test_token_without_active_team_can_read() -> None:
+def test_token_without_active_organisation_can_read() -> None:
     database = FakeDatabase(
         [
             AnalysisSummary(
@@ -159,7 +194,9 @@ def test_token_without_active_team_can_read() -> None:
         ]
     )
     with _client(database) as client:
-        response = client.get("/v1/analyses", params={"team_id": "org_1"}, headers=_authorization())
+        response = client.get(
+            "/v1/analyses", params={"organisation_id": "org_1"}, headers=_authorization()
+        )
     assert response.status_code == 200
     assert database.list_analyses_calls == [("user_123", "org_1")]
 
@@ -167,6 +204,8 @@ def test_token_without_active_team_can_read() -> None:
 def test_membership_is_not_checked_in_python() -> None:
     database = FakeDatabase()
     with _client(database) as client:
-        response = client.get("/v1/analyses", params={"team_id": "org_1"}, headers=_authorization())
+        response = client.get(
+            "/v1/analyses", params={"organisation_id": "org_1"}, headers=_authorization()
+        )
     assert response.status_code == 200
     assert database.is_member_calls == []

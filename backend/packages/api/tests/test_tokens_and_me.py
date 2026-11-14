@@ -1,12 +1,22 @@
+import logging
 import time
 from typing import cast
+from uuid import UUID
 
 import httpx
 import jwt
+import pytest
 from codecraft_api.app import create_app
 from codecraft_api.config import Settings
 from codecraft_api.token_verifier import TokenVerifier
-from codecraft_storage import AnalysisSummary, DatabaseLike
+from codecraft_storage import (
+    AnalysisDetail,
+    AnalysisSummary,
+    DatabaseLike,
+    OrganisationSummary,
+    ProjectDetail,
+    ProjectSummary,
+)
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from jwt.algorithms import RSAAlgorithm
@@ -33,7 +43,7 @@ class FakeDatabase:
         self.is_member_calls: list[tuple[str, str]] = []
         self.list_analyses_calls: list[tuple[str, str]] = []
         self.analyses: list[AnalysisSummary] = []
-        self.team_deletes: list[str] = []
+        self.organisation_deletes: list[str] = []
         self.upserts: list[tuple[str, str]] = []
         self.deletes: list[tuple[str, str]] = []
 
@@ -41,22 +51,46 @@ class FakeDatabase:
 
     async def close(self) -> None: ...
 
-    async def is_member(self, user_id: str, team_id: str) -> bool:
-        self.is_member_calls.append((user_id, team_id))
-        return (user_id, team_id) in self.memberships
+    async def is_member(self, user_id: str, organisation_id: str) -> bool:
+        self.is_member_calls.append((user_id, organisation_id))
+        return (user_id, organisation_id) in self.memberships
 
-    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]:
-        self.list_analyses_calls.append((user_id, team_id))
+    async def list_organisations(self, user_id: str) -> list[OrganisationSummary]:
+        return []
+
+    async def is_owner(self, user_id: str, organisation_id: str) -> bool:
+        return False
+
+    async def has_other_owned_organisation(self, user_id: str, organisation_id: str) -> bool:
+        return False
+
+    async def has_other_organisation(self, user_id: str, organisation_id: str) -> bool:
+        return True
+
+    async def list_analyses(self, user_id: str, organisation_id: str) -> list[AnalysisSummary]:
+        self.list_analyses_calls.append((user_id, organisation_id))
         return self.analyses
 
-    async def delete_team(self, team_id: str) -> None:
-        self.team_deletes.append(team_id)
+    async def list_projects(self, user_id: str, organisation_id: str) -> list[ProjectSummary]:
+        return []
 
-    async def upsert_membership(self, user_id: str, team_id: str) -> None:
-        self.upserts.append((user_id, team_id))
+    async def get_project(self, user_id: str, project_id: UUID) -> ProjectDetail | None:
+        return None
 
-    async def delete_membership(self, user_id: str, team_id: str) -> None:
-        self.deletes.append((user_id, team_id))
+    async def get_analysis(self, user_id: str, analysis_id: UUID) -> AnalysisDetail | None:
+        return None
+
+    async def delete_organisation(self, organisation_id: str) -> None:
+        self.organisation_deletes.append(organisation_id)
+
+    async def upsert_membership(self, user_id: str, organisation_id: str) -> None:
+        self.upserts.append((user_id, organisation_id))
+
+    async def set_owner(self, user_id: str, organisation_id: str) -> None:
+        pass
+
+    async def delete_membership(self, user_id: str, organisation_id: str) -> None:
+        self.deletes.append((user_id, organisation_id))
 
 
 def _database() -> DatabaseLike:
@@ -69,6 +103,7 @@ def _settings() -> Settings:
         MEMBERSHIP_SYNC_DATABASE_URL="postgresql://sync@example/db",
         CLERK_JWT_ISSUER=_ISSUER,
         CLERK_WEBHOOK_SIGNING_SECRET="whsec_c2VjcmV0",
+        CLERK_SECRET_KEY="sk_test_secret",
     )
 
 
@@ -79,10 +114,16 @@ def _verifier() -> TokenVerifier:
 def _claims() -> dict[str, object]:
     return {
         "sub": "user_123",
-        "o": {"id": "org_123", "rol": "org:admin"},
+        "o": {"id": "org_123", "rol": "admin"},
         "iss": _ISSUER,
         "exp": int(time.time()) + 300,
     }
+
+
+def _member_claims() -> dict[str, object]:
+    claims = _claims()
+    claims["o"] = {"id": "org_123", "rol": "member"}
+    return claims
 
 
 def _token(claims: dict[str, object]) -> str:
@@ -116,6 +157,29 @@ def test_expired_token_is_refused() -> None:
     _assert_unauthorized(response)
 
 
+def test_expired_token_logs_reason_without_token_data(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    claims = _claims()
+    claims["exp"] = int(time.time()) - 10
+    token = _token(claims)
+
+    with (
+        caplog.at_level(logging.WARNING, logger="codecraft_api.token_verifier"),
+        _client(_database()) as client,
+    ):
+        response = client.get("/v1/me", headers={"Authorization": f"Bearer {token}"})
+
+    _assert_unauthorized(response)
+    records = [record for record in caplog.records if record.name == "codecraft_api.token_verifier"]
+    assert len(records) == 1
+    message = records[0].getMessage()
+    assert "ExpiredSignatureError" in message
+    assert "signature has expired" in message
+    for forbidden in (token, "user_123", "org_123", _ISSUER, str(claims["exp"])):
+        assert forbidden not in message
+
+
 def test_altered_token_is_refused() -> None:
     header, payload, signature = _token(_claims()).split(".")
     first = "A" if signature[0] != "A" else "B"
@@ -141,27 +205,52 @@ def test_token_without_expiry_is_refused() -> None:
     _assert_unauthorized(response)
 
 
-def test_token_with_o_id_returns_team() -> None:
+def test_token_with_o_id_returns_organisation() -> None:
     database = FakeDatabase()
     database.memberships.add(("user_123", "org_123"))
     with _client(database) as client:
         response = client.get("/v1/me", headers={"Authorization": f"Bearer {_token(_claims())}"})
     assert response.status_code == 200
-    assert response.json() == {"user_id": "user_123", "team_id": "org_123"}
+    assert response.json() == {
+        "user_id": "user_123",
+        "organisation_id": "org_123",
+        "role": "admin",
+    }
 
 
-def test_token_with_no_o_has_no_active_team() -> None:
+def test_admin_token_returns_admin_role() -> None:
+    database = FakeDatabase()
+    database.memberships.add(("user_123", "org_123"))
+    with _client(database) as client:
+        response = client.get("/v1/me", headers={"Authorization": f"Bearer {_token(_claims())}"})
+    assert response.status_code == 200
+    assert response.json()["role"] == "admin"
+
+
+def test_member_token_returns_member_role() -> None:
+    database = FakeDatabase()
+    database.memberships.add(("user_123", "org_123"))
+    with _client(database) as client:
+        response = client.get(
+            "/v1/me",
+            headers={"Authorization": f"Bearer {_token(_member_claims())}"},
+        )
+    assert response.status_code == 200
+    assert response.json()["role"] == "member"
+
+
+def test_token_with_no_o_has_no_active_organisation() -> None:
     database = FakeDatabase()
     claims = _claims()
     del claims["o"]
     with _client(database) as client:
         response = client.get("/v1/me", headers={"Authorization": f"Bearer {_token(claims)}"})
     assert response.status_code == 403
-    assert response.json()["detail"] == "No active team"
+    assert response.json()["detail"] == "No active organisation"
     assert database.is_member_calls == []
 
 
-def test_token_with_only_org_id_has_no_active_team() -> None:
+def test_token_with_only_org_id_has_no_active_organisation() -> None:
     database = FakeDatabase()
     claims = _claims()
     del claims["o"]
@@ -169,18 +258,18 @@ def test_token_with_only_org_id_has_no_active_team() -> None:
     with _client(database) as client:
         response = client.get("/v1/me", headers={"Authorization": f"Bearer {_token(claims)}"})
     assert response.status_code == 403
-    assert response.json()["detail"] == "No active team"
+    assert response.json()["detail"] == "No active organisation"
     assert database.is_member_calls == []
 
 
-def test_token_with_o_without_id_has_no_active_team() -> None:
+def test_token_with_o_without_id_has_no_active_organisation() -> None:
     database = FakeDatabase()
     claims = _claims()
     claims["o"] = {}
     with _client(database) as client:
         response = client.get("/v1/me", headers={"Authorization": f"Bearer {_token(claims)}"})
     assert response.status_code == 403
-    assert response.json()["detail"] == "No active team"
+    assert response.json()["detail"] == "No active organisation"
     assert database.is_member_calls == []
 
 
@@ -189,5 +278,5 @@ def test_non_member_is_forbidden() -> None:
     with _client(database) as client:
         response = client.get("/v1/me", headers={"Authorization": f"Bearer {_token(_claims())}"})
     assert response.status_code == 403
-    assert response.json()["detail"] == "Not a member of the active team"
+    assert response.json()["detail"] == "Not a member of the active organisation"
     assert database.is_member_calls == [("user_123", "org_123")]

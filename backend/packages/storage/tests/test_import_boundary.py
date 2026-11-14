@@ -1,3 +1,10 @@
+"""Keep driver imports out of the API runtime packages.
+
+The operator scripts under backend/scripts are not API runtime. They run with
+the migration connection and deliberately open their own connection, so this
+check covers the installed packages only.
+"""
+
 import ast
 from pathlib import Path
 
