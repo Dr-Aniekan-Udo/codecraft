@@ -285,6 +285,25 @@ def _remove_samples(connection: psycopg.Connection[tuple[object, ...]]) -> int:
     with connection.transaction():
         organisations = _discover_organisations(connection)
 
+        # Lock every candidate before checking it. A non-sample analysis
+        # inserted after this point blocks on the project row lock, so the
+        # check below cannot miss an analysis that committed before the lock.
+        candidate_rows = connection.execute(
+            """
+            select id
+            from public.projects
+            where is_sample = true and organisation_id = any(%s)
+            for update
+            """,
+            (organisations,),
+        ).fetchall()
+        candidate_ids: list[UUID] = []
+        for row in candidate_rows:
+            project_id = row[0]
+            if not isinstance(project_id, UUID):
+                raise RuntimeError("a sample project row has an unexpected type")
+            candidate_ids.append(project_id)
+
         project_rows = connection.execute(
             """
             select p.id,
@@ -293,9 +312,9 @@ def _remove_samples(connection: psycopg.Connection[tuple[object, ...]]) -> int:
                      where a.project_id = p.id and a.is_sample = false
                    )
             from public.projects as p
-            where p.is_sample = true and p.organisation_id = any(%s)
+            where p.id = any(%s)
             """,
-            (organisations,),
+            (candidate_ids,),
         ).fetchall()
         removable_ids = _removable_project_ids([tuple(row) for row in project_rows])
 
