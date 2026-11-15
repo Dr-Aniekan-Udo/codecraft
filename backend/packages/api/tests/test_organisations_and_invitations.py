@@ -142,7 +142,16 @@ class FakeDatabase:
         lock = self.creation_locks.setdefault(key, asyncio.Lock())
         async with lock:
             self.creation_attempt_calls.append(key)
-            yield FakeCreationAttemptStore(self, key)
+            previous = self.attempts.get(key)
+            try:
+                yield FakeCreationAttemptStore(self, key)
+            except BaseException:
+                # The real creation transaction rolls back every attempt write.
+                if previous is None:
+                    self.attempts.pop(key, None)
+                else:
+                    self.attempts[key] = previous
+                raise
 
 
 class FakeCreationAttemptStore:
@@ -202,6 +211,9 @@ class FakeClerk:
         self._organisation_count = 0
         self.opened = False
         self.closed = False
+        self.create_started = asyncio.Event()
+        self.release_create = asyncio.Event()
+        self.release_create.set()
 
     def _raise_injected_error(self, method: str) -> None:
         if self.error is not None and (self.error_methods is None or method in self.error_methods):
@@ -234,6 +246,8 @@ class FakeClerk:
         idempotency_key: str,
     ) -> ClerkOrganisation:
         self._raise_injected_error("create_organisation")
+        self.create_started.set()
+        await self.release_create.wait()
         self._organisation_count += 1
         organisation = ClerkOrganisation(
             id=f"org_created_{self._organisation_count}",
@@ -542,6 +556,7 @@ def test_create_organisation_retries_by_idempotency_key_after_conflict() -> None
 def test_two_concurrent_requests_for_one_key_create_one_organisation() -> None:
     database = FakeDatabase()
     clerk = FakeClerk()
+    clerk.release_create.clear()
     # Separate apps mean separate in-process locks, so only the database's
     # per-key lock can stop both requests from reaching Clerk.
     first_app = create_app(_settings(), database=database, verifier=FakeVerifier(), clerk=clerk)
@@ -557,10 +572,18 @@ def test_two_concurrent_requests_for_one_key_create_one_organisation() -> None:
                 transport=httpx.ASGITransport(app=second_app), base_url="http://test"
             ) as second,
         ):
-            return await asyncio.gather(
-                first.post("/v1/organisations", json=payload, headers=_authorization()),
-                second.post("/v1/organisations", json=payload, headers=_authorization()),
+            first_request = asyncio.create_task(
+                first.post("/v1/organisations", json=payload, headers=_authorization())
             )
+            await clerk.create_started.wait()
+            second_request = asyncio.create_task(
+                second.post("/v1/organisations", json=payload, headers=_authorization())
+            )
+            await asyncio.sleep(0.05)
+            assert database.creation_attempt_calls == [("user_123", "key-1")]
+            assert not second_request.done()
+            clerk.release_create.set()
+            return await asyncio.gather(first_request, second_request)
 
     first_response, second_response = asyncio.run(send_both())
 
@@ -594,6 +617,7 @@ def test_retry_after_the_attempt_row_failed_returns_the_created_organisation() -
     assert retried.status_code == 200
     assert retried.json() == {"organisation_id": "org_created_1"}
     assert len(clerk.created_organisations) == 1
+    assert clerk.find_by_key_calls == 2
 
 
 def test_retry_after_the_owner_write_failed_returns_the_created_organisation() -> None:
@@ -606,6 +630,7 @@ def test_retry_after_the_owner_write_failed_returns_the_created_organisation() -
             json={"name": "Design", "idempotency_key": "key-1"},
             headers=_authorization(),
         )
+        assert ("user_123", "key-1") not in database.attempts
         retried = client.post(
             "/v1/organisations",
             json={"name": "Design", "idempotency_key": "key-1"},
@@ -615,6 +640,7 @@ def test_retry_after_the_owner_write_failed_returns_the_created_organisation() -
     assert retried.status_code == 200
     assert retried.json() == {"organisation_id": "org_created_1"}
     assert len(clerk.created_organisations) == 1
+    assert clerk.find_by_key_calls == 2
 
 
 @pytest.mark.parametrize(
