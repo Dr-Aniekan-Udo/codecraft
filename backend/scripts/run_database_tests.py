@@ -32,6 +32,8 @@ _TABLES = (
     "insights",
 )
 _ALL_TABLES = ("membership", *_TABLES)
+_CREATION_TABLE = "organisation_creation_attempts"
+_EXPOSED_TABLES = (*_ALL_TABLES, _CREATION_TABLE)
 _ALLOWED_TABLE_PRIVILEGES = frozenset(
     {"SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN"}
 )
@@ -333,6 +335,63 @@ def _count_all(connection: Connection[tuple[object, ...]], table: str) -> int:
     )
 
 
+def _has_subject_policy(expression: object) -> bool:
+    return isinstance(expression, str) and "user_id" in expression and "auth.jwt" in expression
+
+
+def _creation_policy_report(connection: Connection[tuple[object, ...]]) -> None:
+    rows = connection.execute(
+        """
+        select cmd, roles, qual, with_check
+        from pg_policies
+        where schemaname in ('public', 'graphql_public') and tablename = %s
+        """,
+        (_CREATION_TABLE,),
+    ).fetchall()
+    _require(len(rows) == 3, "the creation table does not have exactly three policies")
+
+    policies: dict[str, tuple[object, object]] = {}
+    for cmd, roles, qual, with_check in rows:
+        _require(isinstance(cmd, str), "a creation policy has no command")
+        _require(cmd in {"SELECT", "INSERT", "UPDATE"}, f"unexpected creation policy {cmd}")
+        _require(cmd not in policies, f"duplicate creation policy for {cmd}")
+        _require(
+            isinstance(roles, list) and [str(role) for role in roles] == ["codecraft_creation"],
+            f"creation policy {cmd} is not limited to codecraft_creation",
+        )
+        policies[cmd] = (qual, with_check)
+
+    _require(
+        set(policies) == {"SELECT", "INSERT", "UPDATE"},
+        "the creation table does not have select, insert and update policies",
+    )
+    select_qual, select_check = policies["SELECT"]
+    _require(_has_subject_policy(select_qual), "the creation select policy has no subject")
+    _require(select_check is None, "the creation select policy has a write check")
+    insert_qual, insert_check = policies["INSERT"]
+    _require(insert_qual is None, "the creation insert policy has a read expression")
+    _require(_has_subject_policy(insert_check), "the creation insert policy has no subject")
+    update_qual, update_check = policies["UPDATE"]
+    _require(_has_subject_policy(update_qual), "the creation update policy has no read subject")
+    _require(_has_subject_policy(update_check), "the creation update policy has no write subject")
+
+
+def _creation_role_report(connection: Connection[tuple[object, ...]]) -> None:
+    row = connection.execute(
+        """
+        select rolcanlogin, rolbypassrls, rolinherit
+        from pg_roles
+        where rolname = 'codecraft_creation'
+        """
+    ).fetchone()
+    _require(row is not None, "the codecraft_creation role does not exist")
+    assert row is not None
+    _require(
+        row[0] is False and row[1] is False and row[2] is False,
+        "codecraft_creation must be NOLOGIN, NOBYPASSRLS and NOINHERIT",
+    )
+
+
 def _catalog_report(connection: Connection[tuple[object, ...]]) -> None:
     tables = connection.execute(
         """
@@ -345,7 +404,7 @@ def _catalog_report(connection: Connection[tuple[object, ...]]) -> None:
         """
     ).fetchall()
     table_names = {row[0] for row in tables}
-    _require(table_names == set(_ALL_TABLES), "the exposed table set changed")
+    _require(table_names == set(_EXPOSED_TABLES), "the exposed table set changed")
 
     policy_rows = connection.execute(
         """
@@ -355,11 +414,13 @@ def _catalog_report(connection: Connection[tuple[object, ...]]) -> None:
         group by tablename
         """
     ).fetchall()
-    policy_counts = {row[0]: row[1] for row in policy_rows}
+    policy_counts = {row[0]: row[1] for row in policy_rows if row[0] != _CREATION_TABLE}
     _require(
         policy_counts == {table: 1 for table in _ALL_TABLES},
         "an exposed table does not have exactly one select policy",
     )
+    _creation_policy_report(connection)
+    _creation_role_report(connection)
 
     owners = {row[0]: row[2] for row in tables}
     for table, row_security, _ in tables:
@@ -395,6 +456,7 @@ def _catalog_report(connection: Connection[tuple[object, ...]]) -> None:
     ).fetchall()
 
     sync_grants: dict[str, list[str]] = {table: [] for table in _ALL_TABLES}
+    creation_grants: list[str] = []
     for table, grantee, privilege in privileges:
         _require(
             isinstance(table, str) and isinstance(grantee, str) and isinstance(privilege, str),
@@ -404,6 +466,14 @@ def _catalog_report(connection: Connection[tuple[object, ...]]) -> None:
             privilege in _ALLOWED_TABLE_PRIVILEGES,
             f"unknown privilege {privilege} on {table}",
         )
+        if table == _CREATION_TABLE:
+            allowed = grantee == owners[table] or (
+                grantee == "codecraft_creation" and privilege in ("SELECT", "INSERT", "UPDATE")
+            )
+            _require(allowed, f"{grantee} holds {privilege} on {table}")
+            if grantee == "codecraft_creation":
+                creation_grants.append(privilege)
+            continue
         allowed = (
             grantee == owners[table]
             or (grantee == "authenticated" and privilege == "SELECT")
@@ -416,6 +486,11 @@ def _catalog_report(connection: Connection[tuple[object, ...]]) -> None:
         _require(allowed, f"{grantee} holds {privilege} on {table}")
         if grantee == "codecraft_membership_sync":
             sync_grants[table].append(privilege)
+
+    _require(
+        set(creation_grants) == {"SELECT", "INSERT", "UPDATE"},
+        "codecraft_creation does not hold exactly select, insert and update",
+    )
 
     function_privileges = connection.execute(
         """
@@ -444,6 +519,10 @@ def _catalog_report(connection: Connection[tuple[object, ...]]) -> None:
     for table in _ALL_TABLES:
         grants = ", ".join(sorted(sync_grants[table])) or "none"
         print(f"  {table}: rls=true select_policies=1 sync_grants={grants}")
+    print(
+        f"  {_CREATION_TABLE}: rls=true policies=select/insert/update "
+        f"to codecraft_creation grants={', '.join(sorted(creation_grants))}"
+    )
     print(
         "  cleanup routines: outer execute=sync; membership helper execute=owner; "
         "public, anon, authenticated, service_role absent"
