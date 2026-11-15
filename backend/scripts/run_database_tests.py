@@ -417,13 +417,13 @@ def _creation_role_report(connection: Connection[tuple[object, ...]]) -> None:
         row[0] is False and row[1] is False and row[2] is False,
         "codecraft_creation must be NOLOGIN, NOBYPASSRLS and NOINHERIT",
     )
-    membership = connection.execute(
-        "select pg_has_role('codecraft_api', %s, 'member')",
+    can_assume_role = connection.execute(
+        "select pg_has_role('codecraft_api', %s, 'set')",
         (_CREATION_ROLE,),
     ).fetchone()
     _require(
-        membership is not None and membership[0] is True,
-        "codecraft_api is not a member of codecraft_creation; the application path cannot work",
+        can_assume_role is not None and can_assume_role[0] is True,
+        "codecraft_api cannot assume codecraft_creation; the application path cannot work",
     )
     print("  codecraft_api can assume codecraft_creation: true")
     print(f"  codecraft_creation: nologin={row[0] is False} nobypassrls={row[1] is False}")
