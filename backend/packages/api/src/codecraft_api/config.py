@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     MEMBERSHIP_SYNC_DATABASE_URL: str = ""
     CLERK_JWT_ISSUER: str = ""
     CLERK_WEBHOOK_SIGNING_SECRET: str = ""
+    CLERK_SECRET_KEY: str = ""
     CODECRAFT_FRONTEND_ORIGIN: str = "http://localhost:5173"
 
     @field_validator(
@@ -26,6 +27,7 @@ class Settings(BaseSettings):
         "MEMBERSHIP_SYNC_DATABASE_URL",
         "CLERK_JWT_ISSUER",
         "CLERK_WEBHOOK_SIGNING_SECRET",
+        "CLERK_SECRET_KEY",
         "CODECRAFT_FRONTEND_ORIGIN",
     )
     @classmethod

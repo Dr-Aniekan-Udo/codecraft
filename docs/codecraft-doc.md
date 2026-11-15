@@ -22,7 +22,7 @@ A developer opening a codebase they didn't write. Most often it's one they built
 
 They can read code fine. What they can't see is its shape.
 
-Increasingly this is a team problem. A team of four all shipping this way inherits four sets of code nobody read, and the person who joins next inherits all of it at once. So an analysis belongs to an organization rather than to whoever ran it. A repository is mapped once, and everyone after that starts from the map.
+Increasingly this is a team problem. A team of four all shipping this way inherits four sets of code nobody read, and the person who joins next inherits all of it at once. So an analysis belongs to an organisation rather than to whoever ran it. A repository is mapped once, and everyone after that starts from the map.
 
 This description is the test every feature is measured against. When something tempting comes up, such as a quality score, a rating or a review panel, the question is whether this person wants it. Usually they don't. They want to know what depends on this file.
 
@@ -49,7 +49,7 @@ An edge exists only when a reference resolves to a real file or a real table in 
 ## Scope
 
 - Sign-in with GitHub, Google or email, for identity only. No repository scope, no stored user token. Public repositories only.
-- Organizations. Every analysis belongs to one. People are invited into one, and what they can see follows from which one they are in. Default roles only.
+- Organisations. Every analysis belongs to one. People are invited into one, and what they can see follows from which one they are in. Two roles, the identity provider's defaults: admin and member. The creator is the owner, and holds the admin role.
 - Parsing every file in scope. Imports, re-exports, dynamic imports and `require` calls become edges, because a large amount of real code still uses them.
 - Fan-in and fan-out per file.
 - The map, with folders folding into boxes, expanding into files, selection, highlighting and a detail pane.
@@ -149,7 +149,7 @@ No folder names here. The structure is yours to choose. These are constraints on
 A person pastes a public GitHub URL or chooses a local path. The analyzer fetches the repository as an archive, selects the files in scope, parses them, and stores the result. The person then goes straight to the map.
 
 - Each analysis records the commit it came from, so a repository is never silently re-analysed.
-- One analysis exists per repository per organization. Pasting a repository that has already been analysed opens the existing analysis. Rerunning is a separate, explicit action.
+- One analysis exists per repository per organisation. Pasting a repository that has already been analysed opens the existing analysis. Rerunning is a separate, explicit action.
 - Progress is streamed to the page as the run moves through its stages. The browser does not poll.
 - Every network call has a timeout. A stalled download fails the run with a recorded reason instead of hanging.
 - A run that throws records the failure. A run that disappears without failing is marked stale after a defined period, so the dashboard never shows a dead run as working.
@@ -173,7 +173,9 @@ Every adapter is tested with fixtures that contain both a literal route, which m
 
 A dense developer tool, not a dashboard. Small type, tight spacing, and monospace for anything that is a file path. Someone using this is scanning many names at once, and the layout should assume that.
 
-**The shell has three columns and is built once.** A narrow rail on the left lists categories with counts. The map fills the middle. The detail pane sits on the right. The pane has an Overview tab when nothing is selected, and tabs for Structure, Explanation and Ask once a file or folder is selected. Later phases fill these areas and do not move them.
+**The hierarchy.** An organisation holds projects. A project is one repository and holds its analyses over time. An analysis is one run, pinned to a commit, and is queued, running, complete or failed. The workspace is the map and detail view of one analysis. The organisation's root lists its projects, a project's page lists its analyses, and an analysis's page is its workspace. The three columns stay the same on every route.
+
+**The shell has three columns and is built once.** The three columns take 3, 8 and 4 parts of the width. The left rail is context: the current selection and its count, with coverage and exploration added in later phases. Its position and width do not change. The map fills the middle. The detail pane sits on the right. The pane has an Overview tab when nothing is selected, and tabs for Structure, Explanation and Ask once a file or folder is selected. Later phases fill these areas and do not move them.
 
 **Folding is a rule, not a guess.** Every directory starts as its own node. Working from the deepest directory upward, any directory holding fewer than two files merges into its parent. Opening a folded node shows its files, and a folder with many files scrolls. The two-file threshold is the default, and it is tuned against real repositories before it is treated as final.
 
@@ -221,7 +223,7 @@ The chat panel is answered by an agent that runs as its own service, separate fr
 
 The agent has six tools: a summary of the analysis, a search of files by part of a path, a list of files by role, the direct neighbours of a file, a transitive walk in either direction, and the route table. Each tool is a thin wrapper around the same graph functions that draw the map. The agent never has its own version of the traversal.
 
-The model never chooses which analysis it can see. When a person asks a question, the API mints a short-lived token that names one organization and one analysis, and it signs that token with a key only the API holds. The agent carries the token to the API, and the API checks it on every request. Repository text can contain instructions, and those must not change what the agent is allowed to read. A tampered, expired or foreign token reads nothing.
+The model never chooses which analysis it can see. When a person asks a question, the API mints a short-lived token that names one organisation and one analysis, and it signs that token with a key only the API holds. The agent carries the token to the API, and the API checks it on every request. Repository text can contain instructions, and those must not change what the agent is allowed to read. A tampered, expired or foreign token reads nothing.
 
 The agent's instructions define its behaviour. It answers only from lookups, and every answer shows the lookups it made before the answer. It does not infer a connection from a name or a convention. It does not judge quality, security, performance or style, because the dependency map cannot show those, and it says what it can answer instead. A failed lookup returns an explicit failure, never a plausible answer.
 
@@ -249,23 +251,23 @@ Every model call is traced. The cache lookup happens inside the trace, as descri
 
 ## Authentication
 
-Clerk handles identity and organizations: sign-in through GitHub, Google and email, organization creation, invitations, and the roles owner, admin and member. Custom roles are not part of this version.
+Clerk handles identity and organisations: sign-in through GitHub, Google and email, organisation creation, invitations, and the admin and member roles. The creator is recorded as the owner in the membership mirror, and holds the admin role. Custom roles are not part of this version. An admin can delete an organisation through the identity provider's browser interface, because the admin role carries that permission and Clerk does not allow it to be removed from the creator's role. This is accepted: admins are elevated only by the owner, after the owner trusts them, and deletion still removes the organisation's data through the webhook.
 
 Sign-in is for identity only. The GitHub sign-in requests no repository scope, and no user token is stored.
 
-Organization memberships are optional at first sign-in. A person with no organization gets one created for them. A person who was invited joins the invited organization.
+Every person gets a personal organisation at first sign-in. A person who was invited can also accept the invitation and belongs to both organisations.
 
 Authorization is not Clerk's job. Clerk establishes who a person is. The database decides what that person may read.
 
-The session token may carry the organization's name so that the workspace title can render on the first paint. That name is display only and is never used for authorization.
+The session token may carry the organisation's name so that the workspace title can render on the first paint. That name is display only and is never used for authorization.
 
-**Revocation is the point that must be right.** An organization claim carried inside a signed token goes stale. Removing someone would take effect only when their token refreshed. So membership is mirrored into the database. Clerk's organization events arrive by webhook, and the API writes them into a membership table. Row-level policies check that table on every query, not the token. Removal takes effect as soon as the webhook is processed.
+**Revocation is the point that must be right.** An organisation claim carried inside a signed token goes stale. Removing someone would take effect only when their token refreshed. So membership is mirrored into the database. Clerk's organisation events arrive by webhook, and the API writes them into a membership table. Row-level policies check that table on every query, not the token. Removal takes effect as soon as the webhook is processed.
 
 ## Database
 
 Postgres on Supabase, with access control enforced in the database.
 
-Postgres is used because the requirements are Postgres features: organizations, shared analyses and per-row access rules. A single-file database has no policy layer, so its authorization would sit in application code, and the rule that the database decides who may read a row would no longer hold.
+Postgres is used because the requirements are Postgres features: organisations, shared analyses and per-row access rules. A single-file database has no policy layer, so its authorization would sit in application code, and the rule that the database decides who may read a row would no longer hold.
 
 Row-level security is enabled on every table, with explicit policies. Column privileges hide internal fields from the API role. No view exposes rows without a policy. Application code cannot widen access, because it cannot bypass the policy.
 
@@ -277,7 +279,7 @@ The API never holds a Supabase service-level credential. That credential bypasse
 
 The membership sync writes through a narrow database role that can touch only the membership table.
 
-The API holds two secrets of its own. The first is the Clerk webhook signing secret, which verifies that membership events came from Clerk and grants no data access. The second is the key that signs agent tokens, which lets the API prove that a token was issued by the API and names an analysis the person may read.
+The API holds three secrets of its own. The first is the Clerk webhook signing secret, which verifies that membership events came from Clerk and grants no data access. The second is the key that signs agent tokens, which lets the API prove that a token was issued by the API and names an analysis the person may read. The third is the Clerk Backend API secret, used only to create an invitation with a return URL, to change a member's role, to remove a member, and to delete an organisation. Each of these is checked by the API first, and the identity provider is called only after the check passes.
 
 All database connections come from one connection factory. A check fails if any other code opens a connection.
 
@@ -295,13 +297,14 @@ Configuration is defined by the environment template in the project. Its rules:
 These are settled. An agent working on the project may propose a change in writing and must not make it.
 
 - The authentication provider, the policy on any table, the grants on any role, the membership sync, and the rule that the API holds no Supabase service-level credential.
+- The two identity-provider roles, admin and member, and the rule that only the owner promotes or demotes. Role changes and member removals go through the backend. The accepted browser-delete risk for admins is recorded in the design and is not to be removed without a new decision.
 - The signing key for agent tokens, its lifetime, and the rule that the agent holds no signing key.
 - The edge rule and resolver semantics, per language, including which references are reported as unresolved.
 - The four framework adapters in version 1, and the exactness rule each one follows.
 - The TypeScript resolver as the authority for TypeScript and JavaScript resolution, and its pinned version.
 - Adding, removing or upgrading a dependency. This is enforced through the agent tool's permission settings, not only by instruction.
 - Environment variable names, and which of them are secret.
-- What the API exposes: its routes, the fields it returns and what each route may do.
+- What the API exposes: its routes, the fields it returns and what each route may do. The three dashboard read routes are fixed: `GET /v1/projects` returns the organisation's projects with each project's latest analysis state and creation time; `GET /v1/projects/{project_id}` returns one project and its analyses newest first; `GET /v1/analyses/{analysis_id}` returns one analysis with its project name. Each returns not-found identically for an unreadable and an unknown identifier.
 - The checks. A check is never disabled, skipped or loosened to make a change pass. A check that cannot run fails loudly.
 - The connection factory and the model-client module. No other code opens database connections or calls a model.
 - The accessibility standard, the rule that colour is never the only signal, and the palette's colour-vision requirements.
@@ -320,8 +323,8 @@ These are checked by hand or by script, never assumed.
 
 - On a known repository, five files checked by hand match what the parser reports as their imports, in each language the repository uses.
 - Coverage states what was skipped and why, and its numbers are believable. A graph that is nearly empty while coverage reads complete fails this check.
-- A user in one organization cannot read or write rows belonging to another. This is verified by querying as that user, not by reading the code.
-- A user removed from an organization loses access on their next request, verified by a test that removes a member and makes a request.
+- A user in one organisation cannot read or write rows belonging to another. This is verified by querying as that user, not by reading the code.
+- A user removed from an organisation loses access on their next request, verified by a test that removes a member and makes a request.
 - Every table in the schema has row-level security enabled, and the automated test covers every exposed table.
 - No service in the system holds a Supabase service-level credential, verified by a check on its environment and code.
 - A tampered, expired or foreign agent token reads nothing.

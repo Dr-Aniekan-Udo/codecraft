@@ -119,3 +119,4 @@ def test_membership_write_retries_closed_connection(
     assert sync_pool.connection_calls == 2
     assert len(sync_pool.good.statements) == 1
     assert statement in sync_pool.good.statements[0][0]
+    assert "organisation_id" in sync_pool.good.statements[0][0]

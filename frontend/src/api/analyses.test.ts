@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { ANALYSIS_STATE_LABELS, parseAnalysesResponse } from './analyses'
+import {
+  ANALYSIS_STATE_LABELS,
+  parseAnalysesResponse,
+  parseAnalysisDetailResponse,
+} from './analyses'
 
 const completeAnalysis = {
   id: 'analysis_1',
@@ -71,6 +75,79 @@ describe('parseAnalysesResponse', () => {
     ).toThrow()
     expect(() =>
       parseAnalysesResponse({ analyses: [{ ...completeAnalysis, is_sample: null }] }),
+    ).toThrow()
+  })
+})
+
+describe('parseAnalysisDetailResponse', () => {
+  const analysisDetail = {
+    id: 'analysis_1',
+    project_id: 'project_1',
+    project_name: 'Aster',
+    state: 'complete',
+    created_at: '2026-11-10T12:05:00Z',
+    is_sample: true,
+  }
+
+  it('maps the response fields and keeps the sample marker', () => {
+    expect(parseAnalysisDetailResponse({ analysis: analysisDetail })).toEqual({
+      id: 'analysis_1',
+      projectId: 'project_1',
+      projectName: 'Aster',
+      state: 'complete',
+      createdAt: '2026-11-10T12:05:00Z',
+      isSample: true,
+    })
+  })
+
+  it('ignores fields the page does not display', () => {
+    expect(
+      parseAnalysisDetailResponse({
+        analysis: { ...analysisDetail, extra: 'ignored' },
+        extra: 'ignored',
+      }),
+    ).toEqual({
+      id: 'analysis_1',
+      projectId: 'project_1',
+      projectName: 'Aster',
+      state: 'complete',
+      createdAt: '2026-11-10T12:05:00Z',
+      isSample: true,
+    })
+  })
+
+  it('rejects a body without an analysis object', () => {
+    expect(() => parseAnalysisDetailResponse({})).toThrow()
+    expect(() => parseAnalysisDetailResponse(null)).toThrow()
+    expect(() => parseAnalysisDetailResponse({ analysis: null })).toThrow()
+  })
+
+  it('rejects missing or blank fields', () => {
+    expect(() =>
+      parseAnalysisDetailResponse({ analysis: { ...analysisDetail, id: '' } }),
+    ).toThrow()
+    expect(() =>
+      parseAnalysisDetailResponse({ analysis: { ...analysisDetail, project_id: '  ' } }),
+    ).toThrow()
+    expect(() =>
+      parseAnalysisDetailResponse({ analysis: { ...analysisDetail, project_name: '' } }),
+    ).toThrow()
+    expect(() =>
+      parseAnalysisDetailResponse({ analysis: { ...analysisDetail, is_sample: null } }),
+    ).toThrow()
+  })
+
+  it('rejects an invalid creation time', () => {
+    expect(() =>
+      parseAnalysisDetailResponse({
+        analysis: { ...analysisDetail, created_at: 'not-a-date' },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects an unknown state', () => {
+    expect(() =>
+      parseAnalysisDetailResponse({ analysis: { ...analysisDetail, state: 'stale' } }),
     ).toThrow()
   })
 })

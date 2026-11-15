@@ -48,7 +48,6 @@ forbidden_modules = ["codecraft_storage", "codecraft_explain", "codecraft_api"]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "import-linter>=2.16",
     "pyright>=1.1.414",
     "pytest>=9.2.0",

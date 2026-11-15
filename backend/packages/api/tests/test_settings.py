@@ -20,6 +20,7 @@ _REQUIRED = {
     "MEMBERSHIP_SYNC_DATABASE_URL": "postgresql://sync@example/db",
     "CLERK_JWT_ISSUER": "https://clerk.example",
     "CLERK_WEBHOOK_SIGNING_SECRET": "whsec_c2VjcmV0",
+    "CLERK_SECRET_KEY": "sk_test_secret",
 }
 
 

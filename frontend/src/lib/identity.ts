@@ -1,5 +1,3 @@
-const TEAM_NAME_FALLBACK = 'No team'
-
 function nonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
 }
@@ -8,44 +6,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function organizationIdFromClaims(
-  claims: Record<string, unknown> | null | undefined,
-): string | null {
-  const organization = claims?.['o']
-  if (!isRecord(organization)) return null
-  return nonEmptyString(organization['id'])
-}
-
-export function teamNameForEmail(email: string | null | undefined): string {
-  if (!email) return 'My team'
-
-  const at = email.indexOf('@')
-  // The local part is used exactly as written: dots and plus signs included.
-  const localPart = at === -1 ? email : email.slice(0, at)
-  return `${localPart}'s team`
-}
-
-export type TeamNameAccount = {
-  primaryEmailAddress: { emailAddress: string } | null
-}
-
-export function teamNameForAccount(account: TeamNameAccount): string {
-  return teamNameForEmail(account.primaryEmailAddress?.emailAddress)
+/**
+ * Reads the display claim from a token that was just issued by the identity
+ * provider. The signature is deliberately not checked; this is display only.
+ */
+export function organisationNameFromToken(token: string): string | null {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const binary = atob(padded)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    const claims: unknown = JSON.parse(new TextDecoder().decode(bytes))
+    if (!isRecord(claims)) return null
+    return nonEmptyString(claims['org_name'])
+  } catch {
+    return null
+  }
 }
 
 /**
- * The display name comes from the token, never from a lookup. If the display
- * claim is absent, the standard `o.id` claim supplies the team identifier, then
- * Clerk's active organization id. No guessed team name.
+ * The header shows only a real display name, never an identifier or a
+ * placeholder. An absent claim means the slot stays empty until the name is
+ * available from the freshly loaded organisation.
  */
-export function resolveTeamName(
+export function resolveOrganisationName(
   claims: Record<string, unknown> | null | undefined,
-  activeOrganizationId: string | null | undefined,
-): string {
-  return (
-    nonEmptyString(claims?.['org_name']) ??
-    organizationIdFromClaims(claims) ??
-    nonEmptyString(activeOrganizationId) ??
-    TEAM_NAME_FALLBACK
-  )
+): string | null {
+  return nonEmptyString(claims?.['org_name'])
 }

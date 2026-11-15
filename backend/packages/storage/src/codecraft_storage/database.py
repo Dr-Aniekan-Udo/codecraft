@@ -7,7 +7,7 @@ can accidentally open a connection that skips those claims.
 
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -21,6 +21,12 @@ from psycopg_pool import AsyncConnectionPool
 _CONNECTION_KWARGS: dict[str, object] = {"prepare_threshold": None}
 
 _CLAIMS_ROLE = "authenticated"
+
+# Organisation creation is the only write that must survive a second process
+# racing on the same browser key, so it runs as the narrow creation role.
+_CREATION_ROLE = "codecraft_creation"
+
+_CREATION_STATUSES = frozenset({"claimed", "created", "failed"})
 
 # Supabase publishes no Supavisor idle or lifetime timeout. These values are
 # deliberately shorter than the common hosted and OSS defaults so the pool
@@ -40,6 +46,63 @@ class AnalysisSummary:
     state: str
     created_at: datetime
     is_sample: bool
+
+
+@dataclass(frozen=True)
+class OrganisationSummary:
+    organisation_id: str
+    is_owner: bool
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class ProjectSummary:
+    id: UUID
+    name: str
+    created_at: datetime
+    is_sample: bool
+    latest_analysis_state: str | None
+    latest_analysis_created_at: datetime | None
+
+
+@dataclass(frozen=True)
+class ProjectRecord:
+    id: UUID
+    name: str
+    created_at: datetime
+    is_sample: bool
+
+
+@dataclass(frozen=True)
+class ProjectAnalysisSummary:
+    id: UUID
+    state: str
+    created_at: datetime
+    is_sample: bool
+
+
+@dataclass(frozen=True)
+class AnalysisDetail:
+    id: UUID
+    project_id: UUID
+    project_name: str
+    state: str
+    created_at: datetime
+    is_sample: bool
+
+
+@dataclass(frozen=True)
+class ProjectDetail:
+    project: ProjectRecord
+    analyses: list[ProjectAnalysisSummary]
+
+
+@dataclass(frozen=True)
+class CreationAttemptRow:
+    """One browser key's outcome: the organisation it produced, if any."""
+
+    status: str
+    organisation_id: str | None
 
 
 def _is_connection_lost(error: OperationalError) -> bool:
@@ -79,6 +142,110 @@ def _analysis_summary(row: tuple[object, ...]) -> AnalysisSummary:
     )
 
 
+def _organisation_summary(row: tuple[object, ...]) -> OrganisationSummary:
+    organisation_id, is_owner, created_at = row
+    if (
+        not isinstance(organisation_id, str)
+        or not organisation_id
+        or not isinstance(is_owner, bool)
+        or not isinstance(created_at, datetime)
+    ):
+        raise TypeError("unexpected column type in organisations query")
+    return OrganisationSummary(
+        organisation_id=organisation_id, is_owner=is_owner, created_at=created_at
+    )
+
+
+def _project_summary(row: tuple[object, ...]) -> ProjectSummary:
+    project_id, name, created_at, is_sample, latest_state, latest_created_at = row
+    if (
+        not isinstance(project_id, UUID)
+        or not isinstance(name, str)
+        or not isinstance(created_at, datetime)
+        or not isinstance(is_sample, bool)
+        or (latest_state is not None and not isinstance(latest_state, str))
+        or (latest_created_at is not None and not isinstance(latest_created_at, datetime))
+    ):
+        raise TypeError("unexpected column type in projects query")
+    return ProjectSummary(
+        id=project_id,
+        name=name,
+        created_at=created_at,
+        is_sample=is_sample,
+        latest_analysis_state=latest_state,
+        latest_analysis_created_at=latest_created_at,
+    )
+
+
+def _project_record(row: tuple[object, ...]) -> ProjectRecord:
+    project_id, name, created_at, is_sample = row
+    if (
+        not isinstance(project_id, UUID)
+        or not isinstance(name, str)
+        or not isinstance(created_at, datetime)
+        or not isinstance(is_sample, bool)
+    ):
+        raise TypeError("unexpected column type in project query")
+    return ProjectRecord(
+        id=project_id,
+        name=name,
+        created_at=created_at,
+        is_sample=is_sample,
+    )
+
+
+def _project_analysis_summary(row: tuple[object, ...]) -> ProjectAnalysisSummary:
+    analysis_id, state, created_at, is_sample = row
+    if (
+        not isinstance(analysis_id, UUID)
+        or not isinstance(state, str)
+        or not isinstance(created_at, datetime)
+        or not isinstance(is_sample, bool)
+    ):
+        raise TypeError("unexpected column type in project analyses query")
+    return ProjectAnalysisSummary(
+        id=analysis_id,
+        state=state,
+        created_at=created_at,
+        is_sample=is_sample,
+    )
+
+
+def _analysis_detail(row: tuple[object, ...]) -> AnalysisDetail:
+    analysis_id, project_id, project_name, state, created_at, is_sample = row
+    if (
+        not isinstance(analysis_id, UUID)
+        or not isinstance(project_id, UUID)
+        or not isinstance(project_name, str)
+        or not isinstance(state, str)
+        or not isinstance(created_at, datetime)
+        or not isinstance(is_sample, bool)
+    ):
+        raise TypeError("unexpected column type in analysis detail query")
+    return AnalysisDetail(
+        id=analysis_id,
+        project_id=project_id,
+        project_name=project_name,
+        state=state,
+        created_at=created_at,
+        is_sample=is_sample,
+    )
+
+
+def _creation_attempt_row(row: tuple[object, ...]) -> CreationAttemptRow:
+    status, organisation_id = row
+    # The table's check constraint pairs a created status with an organisation
+    # id, so a row that breaks the pairing did not come from this schema.
+    if (
+        not isinstance(status, str)
+        or status not in _CREATION_STATUSES
+        or (organisation_id is not None and not isinstance(organisation_id, str))
+        or (status == "created") != (organisation_id is not None)
+    ):
+        raise TypeError("unexpected row in organisation creation attempt query")
+    return CreationAttemptRow(status=status, organisation_id=organisation_id)
+
+
 def _make_pool(
     connection_string: str,
 ) -> AsyncConnectionPool[AsyncConnection[tuple[object, ...]]]:
@@ -95,6 +262,22 @@ def _make_pool(
     )
 
 
+class CreationAttemptStore(Protocol):
+    """The creation-attempt row for one person and one browser key.
+
+    The store is bound to the transaction that holds the key's advisory lock,
+    so every read and write in one attempt sees the same serialised row.
+    """
+
+    async def read(self) -> CreationAttemptRow | None: ...
+
+    async def mark_claimed(self) -> None: ...
+
+    async def mark_created(self, organisation_id: str) -> None: ...
+
+    async def mark_failed(self) -> None: ...
+
+
 class DatabaseLike(Protocol):
     """The database operations the API needs, without driver types."""
 
@@ -102,15 +285,97 @@ class DatabaseLike(Protocol):
 
     async def close(self) -> None: ...
 
-    async def is_member(self, user_id: str, team_id: str) -> bool: ...
+    async def is_member(self, user_id: str, organisation_id: str) -> bool: ...
 
-    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]: ...
+    async def list_organisations(self, user_id: str) -> list[OrganisationSummary]: ...
 
-    async def delete_team(self, team_id: str) -> None: ...
+    async def is_owner(self, user_id: str, organisation_id: str) -> bool: ...
 
-    async def upsert_membership(self, user_id: str, team_id: str) -> None: ...
+    async def has_other_owned_organisation(self, user_id: str, organisation_id: str) -> bool: ...
 
-    async def delete_membership(self, user_id: str, team_id: str) -> None: ...
+    async def has_other_organisation(self, user_id: str, organisation_id: str) -> bool: ...
+
+    async def list_analyses(self, user_id: str, organisation_id: str) -> list[AnalysisSummary]: ...
+
+    async def list_projects(self, user_id: str, organisation_id: str) -> list[ProjectSummary]: ...
+
+    async def get_project(self, user_id: str, project_id: UUID) -> ProjectDetail | None: ...
+
+    async def get_analysis(self, user_id: str, analysis_id: UUID) -> AnalysisDetail | None: ...
+
+    async def delete_organisation(self, organisation_id: str) -> None: ...
+
+    async def upsert_membership(self, user_id: str, organisation_id: str) -> None: ...
+
+    async def set_owner(self, user_id: str, organisation_id: str) -> None: ...
+
+    async def delete_membership(self, user_id: str, organisation_id: str) -> None: ...
+
+    def creation_attempt(
+        self, user_id: str, idempotency_key: str
+    ) -> AbstractAsyncContextManager[CreationAttemptStore]: ...
+
+
+class _CreationAttemptStore:
+    def __init__(
+        self,
+        connection: AsyncConnection[tuple[object, ...]],
+        user_id: str,
+        idempotency_key: str,
+    ) -> None:
+        self._connection = connection
+        self._user_id = user_id
+        self._idempotency_key = idempotency_key
+
+    async def read(self) -> CreationAttemptRow | None:
+        cursor = await self._connection.execute(
+            """
+            select status, organisation_id
+            from public.organisation_creation_attempts
+            where user_id = %s and idempotency_key = %s
+            """,
+            (self._user_id, self._idempotency_key),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return _creation_attempt_row(row)
+
+    async def mark_claimed(self) -> None:
+        await self._connection.execute(
+            """
+            insert into public.organisation_creation_attempts
+                (user_id, idempotency_key, status, organisation_id, updated_at)
+            values (%s, %s, 'claimed', null, now())
+            on conflict (user_id, idempotency_key) do update
+            set status = 'claimed', organisation_id = null, updated_at = now()
+            """,
+            (self._user_id, self._idempotency_key),
+        )
+
+    async def mark_created(self, organisation_id: str) -> None:
+        await self._connection.execute(
+            """
+            insert into public.organisation_creation_attempts
+                (user_id, idempotency_key, status, organisation_id, updated_at)
+            values (%s, %s, 'created', %s, now())
+            on conflict (user_id, idempotency_key) do update
+            set status = 'created', organisation_id = excluded.organisation_id, updated_at = now()
+            """,
+            (self._user_id, self._idempotency_key, organisation_id),
+        )
+
+    async def mark_failed(self) -> None:
+        await self._connection.execute(
+            """
+            insert into public.organisation_creation_attempts
+                (user_id, idempotency_key, status, organisation_id, updated_at)
+            values (%s, %s, 'failed', null, now())
+            on conflict (user_id, idempotency_key) do update
+            set status = 'failed', organisation_id = null, updated_at = now()
+            """,
+            (self._user_id, self._idempotency_key),
+        )
 
 
 class Database:
@@ -169,22 +434,118 @@ class Database:
         ):
             yield connection
 
-    async def is_member(self, user_id: str, team_id: str) -> bool:
+    @asynccontextmanager
+    async def creation_attempt(
+        self, user_id: str, idempotency_key: str
+    ) -> AsyncGenerator[CreationAttemptStore]:
+        """Run one creation attempt as the creation role.
+
+        The advisory lock is transaction-scoped, so a second process racing on
+        the same browser key waits here instead of both calling the identity
+        provider. Claims are set before the role switch because that role's
+        policies read auth.jwt().
+        """
+        async with self._request_pool.connection() as connection, connection.transaction():
+            await connection.execute(
+                "select set_config('request.jwt.claims', %s, true)",
+                (json.dumps({"sub": user_id, "role": _CREATION_ROLE}),),
+            )
+            await connection.execute(f"set local role {_CREATION_ROLE}")
+            # Every creation for one user takes the user lock first, so two
+            # different keys cannot both pass the key lookups before either
+            # creation finishes. Creations for different users stay independent.
+            await connection.execute(
+                "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"user:{user_id}",),
+            )
+            await connection.execute(
+                "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"key:{user_id}:{idempotency_key}",),
+            )
+            yield _CreationAttemptStore(connection, user_id, idempotency_key)
+
+    async def is_member(self, user_id: str, organisation_id: str) -> bool:
         async with self.request_connection(user_id) as connection:
             cursor = await connection.execute(
                 """
                 select exists (
                     select 1
                     from public.membership
-                    where user_id = %s and team_id = %s
+                    where user_id = %s and organisation_id = %s
                 )
                 """,
-                (user_id, team_id),
+                (user_id, organisation_id),
             )
             row = await cursor.fetchone()
             return row is not None and bool(row[0])
 
-    async def list_analyses(self, user_id: str, team_id: str) -> list[AnalysisSummary]:
+    async def list_organisations(self, user_id: str) -> list[OrganisationSummary]:
+        async with self.request_connection(user_id) as connection:
+            cursor = await connection.execute(
+                """
+                select organisation_id, is_owner, created_at
+                from public.membership
+                where user_id = %s
+                order by created_at asc, organisation_id asc
+                """,
+                (user_id,),
+            )
+            rows = await cursor.fetchall()
+        return [_organisation_summary(row) for row in rows]
+
+    async def is_owner(self, user_id: str, organisation_id: str) -> bool:
+        # The caller may be checking another member (the owner cannot be
+        # removed), so their row-level policy would hide the answer. This is a
+        # boolean authority check, not organisation data, so read it through the narrow
+        # membership sync role instead.
+        async with self.membership_sync_connection() as connection:
+            cursor = await connection.execute(
+                """
+                select exists (
+                    select 1
+                    from public.membership
+                    where user_id = %s and organisation_id = %s and is_owner
+                )
+                """,
+                (user_id, organisation_id),
+            )
+            row = await cursor.fetchone()
+            return row is not None and bool(row[0])
+
+    async def has_other_owned_organisation(self, user_id: str, organisation_id: str) -> bool:
+        async with self.request_connection(user_id) as connection:
+            cursor = await connection.execute(
+                """
+                select exists (
+                    select 1
+                    from public.membership
+                    where user_id = %s and is_owner and organisation_id <> %s
+                )
+                """,
+                (user_id, organisation_id),
+            )
+            row = await cursor.fetchone()
+            return row is not None and bool(row[0])
+
+    async def has_other_organisation(self, user_id: str, organisation_id: str) -> bool:
+        # The caller may be checking another member, whose rows their policy
+        # does not expose. This is a boolean authority check, not organisation data, so
+        # read it through the narrow membership sync role instead.
+        async with self.membership_sync_connection() as connection:
+            cursor = await connection.execute(
+                """
+                select exists (
+                    select 1
+                    from public.membership
+                    where user_id = %s and organisation_id <> %s
+                )
+                """,
+                (user_id, organisation_id),
+            )
+            row = await cursor.fetchone()
+            return row is not None and bool(row[0])
+
+    async def list_analyses(self, user_id: str, organisation_id: str) -> list[AnalysisSummary]:
         # The select policies on analyses and projects decide what this person
         # can see, so no membership check is repeated here.
         async with self.request_connection(user_id) as connection:
@@ -192,49 +553,136 @@ class Database:
                 """
                 select a.id, p.name as project_name, a.state, a.created_at, a.is_sample
                 from public.analyses as a
-                join public.projects as p on p.id = a.project_id and p.team_id = a.team_id
-                where a.team_id = %s
+                join public.projects as p
+                  on p.id = a.project_id and p.organisation_id = a.organisation_id
+                where a.organisation_id = %s
                 order by a.created_at desc, a.id desc
                 limit 50
                 """,
-                (team_id,),
+                (organisation_id,),
             )
             rows = await cursor.fetchall()
         return [_analysis_summary(row) for row in rows]
 
-    async def delete_team(self, team_id: str) -> None:
+    async def list_projects(self, user_id: str, organisation_id: str) -> list[ProjectSummary]:
+        # The select policies on projects and analyses decide what this person
+        # can see, so no membership check is repeated here.
+        async with self.request_connection(user_id) as connection:
+            cursor = await connection.execute(
+                """
+                select p.id, p.name, p.created_at, p.is_sample, latest.state, latest.created_at
+                from public.projects as p
+                left join lateral (
+                    select a.state, a.created_at
+                    from public.analyses as a
+                    where a.project_id = p.id and a.organisation_id = p.organisation_id
+                    order by a.created_at desc, a.id desc
+                    limit 1
+                ) as latest on true
+                where p.organisation_id = %s
+                order by p.created_at desc, p.id desc
+                limit 50
+                """,
+                (organisation_id,),
+            )
+            rows = await cursor.fetchall()
+        return [_project_summary(row) for row in rows]
+
+    async def get_project(self, user_id: str, project_id: UUID) -> ProjectDetail | None:
+        async with self.request_connection(user_id) as connection:
+            cursor = await connection.execute(
+                """
+                select id, name, created_at, is_sample
+                from public.projects
+                where id = %s
+                """,
+                (project_id,),
+            )
+            project_row = await cursor.fetchone()
+            if project_row is None:
+                # A project hidden by the policy and a project that does not exist
+                # look the same to the caller.
+                return None
+            analyses_cursor = await connection.execute(
+                """
+                select id, state, created_at, is_sample
+                from public.analyses
+                where project_id = %s
+                order by created_at desc, id desc
+                limit 50
+                """,
+                (project_id,),
+            )
+            analysis_rows = await analyses_cursor.fetchall()
+        return ProjectDetail(
+            project=_project_record(project_row),
+            analyses=[_project_analysis_summary(row) for row in analysis_rows],
+        )
+
+    async def get_analysis(self, user_id: str, analysis_id: UUID) -> AnalysisDetail | None:
+        async with self.request_connection(user_id) as connection:
+            cursor = await connection.execute(
+                """
+                select a.id, a.project_id, p.name, a.state, a.created_at, a.is_sample
+                from public.analyses as a
+                join public.projects as p
+                  on p.id = a.project_id and p.organisation_id = a.organisation_id
+                where a.id = %s
+                """,
+                (analysis_id,),
+            )
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        return _analysis_detail(row)
+
+    async def delete_organisation(self, organisation_id: str) -> None:
         # The sync role holds no table privilege, so the routine is the only way
-        # it can remove a deleted team's rows. Deleting twice is harmless.
+        # it can remove a deleted organisation's rows. Deleting twice is harmless.
         async def delete() -> None:
             async with self.membership_sync_connection() as connection:
                 cursor = await connection.execute(
-                    "select * from public.delete_team_rows(%s)",
-                    (team_id,),
+                    "select * from public.delete_organisation_rows(%s)",
+                    (organisation_id,),
                 )
                 await cursor.fetchall()
 
         await _retry_closed_connection(delete)
 
-    async def upsert_membership(self, user_id: str, team_id: str) -> None:
+    async def upsert_membership(self, user_id: str, organisation_id: str) -> None:
         async def write() -> None:
             async with self.membership_sync_connection() as connection:
                 await connection.execute(
                     """
-                    insert into public.membership (user_id, team_id)
+                    insert into public.membership (user_id, organisation_id)
                     values (%s, %s)
-                    on conflict (user_id, team_id) do nothing
+                    on conflict (user_id, organisation_id) do nothing
                     """,
-                    (user_id, team_id),
+                    (user_id, organisation_id),
                 )
 
         await _retry_closed_connection(write)
 
-    async def delete_membership(self, user_id: str, team_id: str) -> None:
+    async def set_owner(self, user_id: str, organisation_id: str) -> None:
         async def write() -> None:
             async with self.membership_sync_connection() as connection:
                 await connection.execute(
-                    "delete from public.membership where user_id = %s and team_id = %s",
-                    (user_id, team_id),
+                    """
+                    insert into public.membership (user_id, organisation_id, is_owner)
+                    values (%s, %s, true)
+                    on conflict (user_id, organisation_id) do update set is_owner = true
+                    """,
+                    (user_id, organisation_id),
+                )
+
+        await _retry_closed_connection(write)
+
+    async def delete_membership(self, user_id: str, organisation_id: str) -> None:
+        async def write() -> None:
+            async with self.membership_sync_connection() as connection:
+                await connection.execute(
+                    "delete from public.membership where user_id = %s and organisation_id = %s",
+                    (user_id, organisation_id),
                 )
 
         await _retry_closed_connection(write)

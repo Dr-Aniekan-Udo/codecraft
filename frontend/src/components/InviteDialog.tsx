@@ -1,19 +1,29 @@
-import { useOrganization } from '@clerk/react'
+import { useAuth, useOrganization } from '@clerk/react'
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import type { OrganisationRole } from '../api/useMembershipStatus'
 
-const MANAGE_MEMBERS_PERMISSION = 'org:sys_memberships:manage'
-
-export function InviteDialog() {
-  const { organization, membership } = useOrganization()
+export function InviteDialog({
+  apiUrl,
+  role,
+}: {
+  apiUrl: string
+  role: OrganisationRole
+}) {
+  // Clerk's API uses the US spelling 'organization'; the application's domain
+  // term is 'organisation'.
+  const { organization: activeOrganisation } = useOrganization()
+  const { getToken } = useAuth()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sentTo, setSentTo] = useState<string | null>(null)
 
-  const canInvite = membership?.permissions.includes(MANAGE_MEMBERS_PERMISSION) ?? false
-  if (!canInvite || !organization) return null
+  // The API reported this role for the verified token; Clerk's permission
+  // value is not used for the active organisation's role.
+  const canInvite = role === 'admin'
+  if (!canInvite || !activeOrganisation) return null
 
   function reset(): void {
     setError(null)
@@ -33,7 +43,7 @@ export function InviteDialog() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!organization || sending) return
+    if (!activeOrganisation || sending) return
 
     const form = event.currentTarget
     const emailValue = new FormData(form).get('email')
@@ -49,15 +59,45 @@ export function InviteDialog() {
     setSentTo(null)
 
     try {
-      await organization.inviteMember({ emailAddress, role: 'org:member' })
+      const token = await getToken({
+        organizationId: activeOrganisation.id,
+        skipCache: true,
+      })
+      if (!token) {
+        setError('Your session could not be read. Reload the page and try again.')
+        return
+      }
+
+      const response = await fetch(`${apiUrl}/v1/invitations`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          organisation_id: activeOrganisation.id,
+          email_address: emailAddress,
+        }),
+      })
+
+      if (response.status === 403) {
+        setError('Only organisation admins can invite someone.')
+        return
+      }
+      if (response.status === 422) {
+        setError('That email address could not be invited.')
+        return
+      }
+      if (!response.ok) {
+        setError('The invitation could not be sent. Try again.')
+        return
+      }
+
       setSentTo(emailAddress)
       form.reset()
-    } catch (inviteError) {
-      setError(
-        inviteError instanceof Error
-          ? inviteError.message
-          : 'The invitation could not be sent. Try again.',
-      )
+    } catch {
+      setError('The invitation could not be sent. Try again.')
     } finally {
       setSending(false)
     }
@@ -65,7 +105,12 @@ export function InviteDialog() {
 
   return (
     <>
-      <button type="button" className="button" onClick={open} aria-haspopup="dialog">
+      <button
+        type="button"
+        className="header-invite"
+        onClick={open}
+        aria-haspopup="dialog"
+      >
         Invite
       </button>
       <dialog
@@ -76,10 +121,10 @@ export function InviteDialog() {
         onClose={reset}
       >
         <form className="dialog__form" onSubmit={(event) => void handleSubmit(event)}>
-          <h2 id="invite-title">Invite a teammate</h2>
+          <h2 id="invite-title">Invite a member</h2>
           <p id="invite-description">
-            Invite someone to <span className="mono">{organization.name}</span> by email. Only team
-            admins can invite.
+            Invite someone to <span className="mono">{activeOrganisation.name}</span> by
+            email. Only organisation admins can invite.
           </p>
 
           <div className="field">

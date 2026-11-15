@@ -1,58 +1,82 @@
-# Phase 1 — Identity and teams
+# Phase 1 — Identity and organisations
 
-**Goal.** Someone signs in, belongs to a team, and every request they make reaches the database as that person, so the database decides what they can see.
+**Goal.** Every person has an organisation of their own from their first sign-in. They can be invited into other organisations, accept or decline those invitations, and switch between their organisations. The database decides what they can see in every organisation.
 
 Sign-in itself is already set up. This phase is about what has to be true around it.
 
 ## Build
 
-- **Teams at first sign-in.** Signing in with no team creates one through the identity provider's client, named by the naming rule, and makes it active. The name is the same whichever sign-in method was used.
-- **The naming rule.** The team's name is the part of the person's email before the @, followed by "'s team". For `ada@example.com` the name is "ada's team". If the account has no email, the name is "My team". First and last names are never used. The name is set once, at creation.
-- **Invitations.** An admin of a team can invite another person by email. A member cannot invite anyone, and the invite action is not shown to them. Accepting an invitation brings the person to this app's sign-in page, then into that team.
-- **Switching.** A person in more than one team can switch which one is active. The whole application shows the new team after the switch.
-- **The team name in the header.** The header shows the name carried by the token's display claim, `org_name`, on the first paint. If that claim is absent, the header shows the team's identifier, never a guessed name.
-- **Membership.** The identity provider's team events arrive at an endpoint in the API. The endpoint verifies each event's signature before reading it, then writes the membership change. The membership table holds one row per person per team, with row-level security enabled and one policy: a person can read only their own rows.
-- **Token check.** The API checks every request's token for signature, issuer and expiry. A missing, expired or altered token is refused with 401.
-- **Team check.** The API reads the person's active team from the token's standard organization object, `o.id`. It then checks that the person has a membership row for that team. If the token has no active team, or the person is not a member of it, the API refuses with 403.
-- **Database access.** Each request's database work runs as the restricted API role. Inside that transaction, the connection switches to the authenticated role and sets the verified person's identity as the claims that policies read.
-- **"Team syncing".** When the membership row has not arrived yet, the page shows a short message saying the team is syncing. It never shows a blank page.
-- **Application shell.** The signed-in area renders inside one shell that later phases fill in.
-- **Theme control.** Three states: follow the system, force light, force dark. The choice is written to the root element, survives a reload, and the colour tokens respond to it.
+- **A personal organisation at first sign-in.** A signed-in person who owns no organisation gets one, named by the naming rule, and it becomes active. This applies to every sign-in method, and to accounts that existed before this rule.
+- **The naming rule.** A personal organisation's name is "My organisation". The rule is applied when the organisation is created and is never reapplied.
+- **Creating an organisation.** A signed-in person can create an organisation with a name they enter. The name is required. The person who creates it becomes its owner and an admin. The request is made to the backend and carries an idempotency key chosen by the browser for that attempt.
+- **Inviting.** An admin of an organisation, including its owner, can invite a person by email. The invitation is bound to that email address. An admin can revoke a pending invitation.
+- **Pending invitations.** A signed-in person sees the invitations sent to their own verified email address. Each one shows the organisation's name and who sent it, with accept and decline. Nothing has to be typed to find an invitation.
+- **Pending invitations on the root page.** The root page lists the pending invitations as plain rows above the analyses section, so a new arrival sees them without opening the invitations page. The rows use the same accept and decline actions as the invitations page.
+- **The invitations page.** Invitation emails link to a page in this application. The page lists the pending invitations for the signed-in account. If the account has none, the page says so and tells the person to sign in with the address the invitation was sent to. If the person is not signed in, the page sends them to sign-in and returns them to the same page.
+- **Accepting and declining.** Accepting adds the organisation to the person's organisations. It does not make the organisation active; the person switches to it when they choose. Declining hides that invitation for that person. Neither changes the organisation. After either action, the pending list and the switcher reload at once, on whichever page the action was taken.
+- **Invitations control.** The header has an Invitations icon, with a count badge when invitations are pending. It opens the invitations page from any page. The badge is ink with a white count, never a hue. Invite is a dialog, as before. Only Invitations is a route. The icon's accessible name states the number pending, or that none are pending, so the control works without a mouse and without relying on a tooltip.
+- **One three-column shell.** The signed-in area uses one three-column shell, built once. The left column is a context rail: the selected analysis, the total count, and the words "switch in the centre list". Later phases add coverage and exploration to the rail. The centre column holds the active section. The right column is a detail pane showing the details of the current item. The three columns take 3, 8 and 4 parts of the content width: rail 3, centre 8, pane 4. No column has a fixed pixel width. Later phases fill these columns and do not move them. The rail's position and width do not change.
+- **Organisation name in the header.** The header reads, from the left: the brand, then the organisation control. The organisation's name opens the root of the application. The chevron opens the switcher.
+- **Switching.** Choosing another organisation in the switcher makes it active and opens that organisation's root, from any page, including the invitations page. The application obtains a fresh token for that organisation and loads its data.
+- **Renaming an organisation.** An admin can rename the organisation. After a rename, the header shows the new name straight away.
+- **Deleting an organisation.** Only the organisation's owner can delete it. Deletion is offered only when the person owns another organisation that remains.
+- **Leaving an organisation.** An owner cannot leave an organisation they own. Ownership transfer is not part of this phase, so the owner's only way out of their own organisation is deletion, which is refused while they own no other organisation.
+- **Roles.** The application uses the identity provider's two default roles, admin and member. The owner is the person who created the organisation and holds the admin role. Any number of members can be admins. The owner can promote a member to admin and demote an admin back to member. Admins can remove members, except the owner. Admins cannot promote, demote or delete.
+- **Role and member changes go through the backend.** Promoting, demoting and removing members are requests to the backend. The backend checks the acting person's role and the target's role, and only then asks the identity provider to make the change. The application does not call the identity provider's member-management functions directly.
+- **Unchanged from the earlier build:** the membership webhook, the token check, the organisation check, the theme control's three states and persistence, the header's control set, the sign-in methods, and the protected-page redirect. The signed-in area below the header gains the three-column shell.
 
 ## Constraints
 
-- **The token says who. The database says what.** Membership is read from the membership table through the policy on every query. A token that claims a team grants nothing by itself.
-- **The team comes from the standard claim.** The active team is read from `o.id`, which the identity provider sends by default. An earlier build read a custom field the token never carried, so every request was refused. Only the display name uses a custom claim.
-- **Removal takes effect on the next request.** The policy reads current membership, not the token, so a removed person is refused straight away. Waiting for the token to expire would leave a removed person able to read until it did.
-- **Removal leaves no access behind.** Removal from a team takes effect on the person's next request, and that team's data is refused from then on. A person left with no team is given a new team, named by the naming rule, as at a first sign-in. The removed person never regains the old team's data.
-- **Membership arrives after the team does.** The team exists before its membership row is written, so a brief 403 right after creation is expected. The page retries once, then shows "Team syncing". A person is never shown a blank page and never shown another team's data.
-- **The webhook verifies before it reads.** An event with an invalid signature is refused and writes nothing. Otherwise anyone who finds the address could add people to teams.
-- **Pooled database connections can go stale.** The database closes idle connections from its side. A write that reuses one fails at its first statement. So the pool checks each connection before use, keeps idle connections short-lived, and the membership write retries once on a closed connection. Without this, a sign-up can fail once and never recover, leaving a person locked out.
-- **Prepared statements are off.** The transaction pooler does not support them, so enabling them causes failures that appear only under load.
-- **The membership sync writes through its own narrow role.** That role can change the membership table and nothing else. If it could reach other tables, a bug in the webhook could alter data it has no reason to touch.
-- **The API holds no elevated database credential.** Only the restricted API role is loaded. A credential that bypasses row-level security means the policies are silently ignored while everything appears to work.
-- **One connection factory.** Every database connection in the API comes from it, because it is the only place that sets the claims. Code that opens a connection another way returns wrong rows without any error.
-- **Teams are created only once per sign-in.** Two tabs racing at first sign-in must not create two teams for one person.
-- **Invitations are restricted by the identity provider, not only hidden.** The admin-only rule is enforced where invitations are sent, so a member who somehow reaches the action is still refused.
-- **One session mechanism.** Sessions belong to the identity provider. Any second mechanism left by a template is removed, because two systems owning one cookie causes sign-outs that look random.
-- **The database client carries the token.** A client built without it looks fine until the first policy exists, and then every query returns nothing.
-- **The frontend is a single-page application.** The protected-page redirect is for convenience. The real protection is the API and the database, so bypassing the redirect still returns nothing.
-- **Configuration fails loudly.** If a required value is missing at startup, the application refuses to start and names the value. A blank value that causes a confusing error later is worse than a crash on start.
-- **Only membership is created.** No table other than membership is created in this phase.
+- **Nothing is shown for an organisation until its access is confirmed.** Organisation data, including the analyses list, renders only after the person's membership for the active organisation is confirmed. Until then the page shows a neutral loading state with no text, and never the organisation's data.
+- **The organisation name appears only once it is confirmed.** Until then the name slot in the header is empty and the layout does not shift. A placeholder name is never shown.
+- **Edge colours stay with edges.** No colour is used for interface state that the edge colours carry. Blue and vermillion are reserved for edge direction, and interface state uses text, shape or neutral colour. The focus ring and the destructive rule are affordances, not interface state; they may use blue and vermillion respectively, without carrying edge meaning.
+- **Destructive actions use ink text.** A destructive action is marked by its label and a 3px vermillion rule, with ink text, never with coloured text on a light surface.
+- **A confirmed membership stays confirmed on refresh.** A refresh on an organisation the person belongs to shows that organisation straight away. The "organisation syncing" message appears only while a membership is being written: after creating an organisation, or accepting an invitation.
+- **Switching keeps the session.** A switch never asks the person to sign in again, and never reports an expired session while the session is valid. Before an organisation's data is requested, a token for that organisation is obtained.
+- **One session per sign-in.** An organisation is a choice inside the person's session. Switching organisations does not create a session.
+- **An invitation grants nothing until it is accepted.** A pending invitation confers no access and creates no membership. Accepting creates the membership through the webhook path. Declining creates nothing.
+- **An invitation belongs to one email address.** Invitations are shown only to the signed-in account whose verified address matches the invited address. The person is never asked to type an email address to find one.
+- **A wrong account gets a clear answer and no detail.** A signed-in account with no matching invitation is told so. It sees nothing about the organisation the invitation was for.
+- **A declined invitation stays declined.** It is not shown again to that person. A new invitation from an admin for the same organisation is a new decision, and shows again.
+- **Icon-only controls have accessible names.** A tooltip alone is not an accessible name. Every icon-only control, including the theme control, has a name that a screen reader announces. The theme control's name states the current theme and that activating it changes the theme.
+- **The badge follows interface rules.** The Invitations badge is interface state, so it uses ink and text, never blue or vermillion.
+- **Organisation creation happens once.** A double press, two open tabs, or two browsers must not create two organisations from one request. The server returns the same organisation for the same idempotency key, and creates a new one only for a new key. In addition, a request for an organisation with the same name as one the same person created in the last 10 seconds returns that organisation instead of creating another. After 10 seconds, the same name creates a new organisation.
+- **Only the owner deletes.** The owner is the person recorded as the creator. Deletion is refused for anyone else, and refused when it would leave the person with no organisation.
+- **Deleting an organisation removes its data.** Its rows are removed from every table, and no one can read them afterwards.
+- **Admins manage, the owner deletes.** Admins, including the owner, can invite, revoke invitations, remove members and rename. Only the owner can delete.
+- **The owner cannot be removed or demoted.** No one, including an admin, can remove the owner from the organisation or change the owner's role. The server refuses these requests, whatever the interface shows.
+- **Only the owner promotes and demotes.** An admin who is not the owner cannot promote or demote anyone.
+- **Admin deletion through the browser is an accepted risk.** The admin role carries the identity provider's organisation delete permission. Clerk does not allow it to be removed from the creator's role, and custom roles are not used, so an admin could call the identity provider's delete directly from the browser. This is accepted for these reasons: admins are elevated only by the owner, after the owner trusts them; and deletion still removes the organisation's data through the webhook. Nothing in the acceptance check tests this path, and it must not be treated as a guarantee.
+- **Role checks use the identity provider's values.** The owner and admin checks read the role from the verified token, using the exact value the identity provider issues. That value is confirmed with a live token before the check is written.
+- **Nobody is left without an organisation.** Removal from an organisation leaves the person in their personal organisation or another organisation they belong to.
+- **Existing accounts are brought up to the rule.** An account created before this rule receives a personal organisation at its next sign-in, if it owns no organisation.
+- **Earlier constraints still hold:** the token check, the organisation check, the membership webhook and its retry, prepared statements off, the sync role's narrow rights, one connection factory, one session mechanism, configuration that fails loudly, and no table beyond those named in later phases.
 
 ## Acceptance check
 
-1. Sign up with a brand-new email account. The team is named "{the part of the email before @}'s team", and the identity provider's create-team screen never appears.
-2. Sign up with GitHub or Google. The team is named by the same rule, using the email that provider supplies.
-3. An admin invites a second account. It accepts the invitation, arrives at sign-in, and lands in the same team, under the same name.
-4. Signed in as a member, the invite action is not visible anywhere in the application.
-5. The header shows the team's name on the first paint, with no flicker to another name.
-6. Remove the second account from the team. Its next request for that team is refused, without waiting for the token to expire. If it has no other team, it is given a new team with the naming rule, and the old team's data is never shown.
-7. Switch to a second team and back. The header and the membership status both change, and no page shows the previous team's data.
-8. Switch the theme through all three states and reload each time. The choice survives. Forcing light while the system is dark shows light.
-9. Visit a protected page while signed out. Sign-in appears before any of the page's content, and the network tab shows no protected page data.
-10. In the database dashboard, the membership table shows row-level security as enabled, with a single policy.
+1. Sign up with a new account. It lands in an organisation of its own, named by the naming rule, and that organisation is active.
+2. Create a second organisation with a name you enter. It becomes active, and you are its owner.
+3. Invite another account by email. Sign in with that account. The invitation appears on arrival, with the organisation's name and who sent it. You are not asked to type an email address.
+4. Use the invitation link while signed in with an account that was not invited. The page says no invitation exists for this account and tells you to sign in with the invited address. It shows no organisation details.
+5. Accept one invitation, from the root page and from the invitations page. The pending list and the switcher update at once, the organisation appears in the switcher, and it is not active until you switch to it. Decline another. It does not come back on refresh.
+6. Switch between organisations from the root page and from the invitations page. Each switch opens that organisation's root, with no sign-in prompt, no reload, and no expired-session message.
+7. Refresh while on an organisation you belong to. Its analyses appear, with no "organisation syncing" message.
+8. Before an organisation's access is confirmed, none of its analyses is visible on the page, and the header shows no organisation name.
+9. As an admin, including the owner, invite someone, revoke a pending invitation, rename the organisation, and remove a member. The header shows the new name straight away after the rename. As a plain member, none of these controls is shown.
+10. As an admin who is not the owner, deletion is not offered, and the server refuses a deletion request made through the application. As the owner with another organisation available, deletion succeeds and the organisation's data is gone. As the owner with no other organisation, deletion is refused and the page gives a reason.
+11. Remove someone from an organisation. Their next request for that organisation is refused, and they still have their personal organisation.
+12. Sign in with an account created before this rule. It receives a personal organisation.
+13. As the owner, promote a member to admin, then demote them back to member. Each change takes effect on the person's next request.
+14. As an admin who is not the owner, try to demote the owner, or remove the owner. Both are refused, and the owner keeps their role and their membership.
+15. Use the Invitations control in the header from the root page and from an organisation's page. It opens the invitations page each time.
+16. Click the organisation's name in the top left from the invitations page. It opens the root of the current organisation.
+17. After accepting or declining an invitation, the Invitations badge's count falls straight away, and the badge disappears when none remain.
+18. Each icon-only control, including the theme control, is announced by a screen reader with a name that matches its current state.
+
+## Review
+
+Before this phase is reported as complete, a separate review pass checks the built code against every Build item, Constraint and Acceptance check in this document. The review reports each item as met, partly met or not met, with the file and line. Any item not met is fixed before the phase is reported complete.
 
 ## Not in this phase
 
-Renaming a team from inside the application. Until then, an admin renames it in the identity provider's dashboard. Any table other than membership. Roles beyond owner, admin and member. Custom styling of the sign-in screen beyond matching the rest of the application.
+Transferring ownership. Custom roles. Resuming the last page within each organisation, which is deferred until analyses can be opened. Invitation expiry settings beyond the default. Styling beyond the existing shell.
