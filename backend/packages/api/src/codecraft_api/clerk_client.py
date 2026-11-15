@@ -465,7 +465,7 @@ class ClerkClient:
         merged["codecraft_idempotency_keys"] = sorted(_idempotency_keys(merged) | {idempotency_key})
         await self._request(
             "PATCH",
-            f"/organizations/{organisation.id}",
+            f"/organizations/{organisation.id}/metadata",
             json={"private_metadata": merged},
         )
 
