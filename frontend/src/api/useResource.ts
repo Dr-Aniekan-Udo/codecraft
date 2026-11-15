@@ -137,6 +137,7 @@ export function useResource<T>(
           }
           if (!active) return
           token = await tokenForOrganisation()
+          if (!active) return
           if (!token) {
             setSettled({ requestKey, state: { status: 'error', message: ACCESS_MESSAGE } })
             return

@@ -1,6 +1,7 @@
 import { useAuth, useOrganization, useOrganizationList, useUser } from '@clerk/react'
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router'
 import {
   createOrganisation,
   leaveOrganisation,
@@ -76,15 +77,29 @@ export function OrganisationMenu({
     userMemberships: { infinite: true, pageSize: 100 },
   })
   const organisationsState = useOrganisations(apiUrl)
+  const navigate = useNavigate()
   const dialogRef = useRef<HTMLDialogElement>(null)
-  // One attempt has one key: a double press or retry reuses this ref, and
-  // another tab creating the same name reuses the short-lived stored key.
-  const createIdempotencyKey = useRef<string | null>(null)
+  // One attempt has one key: a double press or retry with the same name reuses
+  // this ref, and another tab creating the same name reuses the short-lived
+  // stored key. A different name starts its own attempt.
+  const createAttempt = useRef<{ name: string; key: string } | null>(null)
+  // Each full administration load starts a generation. Results, errors and
+  // load-more pages from an older generation are discarded, so a closed or
+  // reloaded dialog never receives stale state.
+  const adminLoadGeneration = useRef(0)
+  const membersPage = useRef(1)
+  const invitationsPage = useRef(1)
+  const membersLoadLock = useRef(false)
+  const invitationsLoadLock = useRef(false)
   const [creating, setCreating] = useState(false)
   const [newOrganisationName, setNewOrganisationName] = useState('')
   const [renameValue, setRenameValue] = useState('')
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([])
   const [members, setMembers] = useState<OrganisationMember[]>([])
+  const [membersTotal, setMembersTotal] = useState(0)
+  const [invitationsTotal, setInvitationsTotal] = useState(0)
+  const [membersLoadingMore, setMembersLoadingMore] = useState(false)
+  const [invitationsLoadingMore, setInvitationsLoadingMore] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -117,15 +132,95 @@ export function OrganisationMenu({
 
   const loadAdminData = async (): Promise<void> => {
     if (!canManage) return
+    const generation = ++adminLoadGeneration.current
+    membersPage.current = 1
+    invitationsPage.current = 1
+    membersLoadLock.current = false
+    invitationsLoadLock.current = false
+    setMembersLoadingMore(false)
+    setInvitationsLoadingMore(false)
     try {
       const [invitations, memberships] = await Promise.all([
-        activeOrganisation.getInvitations({ status: ['pending'], pageSize: 100 }),
-        activeOrganisation.getMemberships({ pageSize: 100 }),
+        activeOrganisation.getInvitations({
+          status: ['pending'],
+          initialPage: 1,
+          pageSize: 100,
+        }),
+        activeOrganisation.getMemberships({ initialPage: 1, pageSize: 100 }),
       ])
+      if (generation !== adminLoadGeneration.current) return
       setPendingInvitations(invitations.data)
       setMembers(memberships.data)
+      setInvitationsTotal(invitations.total_count)
+      setMembersTotal(memberships.total_count)
     } catch {
+      if (generation !== adminLoadGeneration.current) return
       setError('The organisation members could not be loaded.')
+    }
+  }
+
+  const loadMoreMembers = async (): Promise<void> => {
+    if (!canManage || membersLoadLock.current) return
+    const generation = adminLoadGeneration.current
+    const nextPage = membersPage.current + 1
+    membersLoadLock.current = true
+    setMembersLoadingMore(true)
+    try {
+      const response = await activeOrganisation.getMemberships({
+        initialPage: nextPage,
+        pageSize: 100,
+      })
+      if (generation !== adminLoadGeneration.current) return
+      setMembers((previous) => {
+        const seen = new Set(previous.map((member) => member.id))
+        return [
+          ...previous,
+          ...response.data.filter((member) => !seen.has(member.id)),
+        ]
+      })
+      setMembersTotal(response.total_count)
+      membersPage.current = nextPage
+    } catch {
+      if (generation !== adminLoadGeneration.current) return
+      setError('The rest of the members could not be loaded.')
+    } finally {
+      if (generation === adminLoadGeneration.current) {
+        membersLoadLock.current = false
+        setMembersLoadingMore(false)
+      }
+    }
+  }
+
+  const loadMoreInvitations = async (): Promise<void> => {
+    if (!canManage || invitationsLoadLock.current) return
+    const generation = adminLoadGeneration.current
+    const nextPage = invitationsPage.current + 1
+    invitationsLoadLock.current = true
+    setInvitationsLoadingMore(true)
+    try {
+      const response = await activeOrganisation.getInvitations({
+        status: ['pending'],
+        initialPage: nextPage,
+        pageSize: 100,
+      })
+      if (generation !== adminLoadGeneration.current) return
+      setPendingInvitations((previous) => {
+        const seen = new Set(previous.map((invitation) => invitation.id))
+        return [
+          ...previous,
+          ...response.data.filter((invitation) => !seen.has(invitation.id)),
+        ]
+      })
+      setInvitationsTotal(response.total_count)
+      invitationsPage.current = nextPage
+    } catch {
+      if (generation !== adminLoadGeneration.current) return
+      setError('The rest of the invitations could not be loaded.')
+    } finally {
+      if (generation === adminLoadGeneration.current) {
+        invitationsLoadLock.current = false
+        setInvitationsLoadingMore(false)
+      }
     }
   }
 
@@ -140,11 +235,12 @@ export function OrganisationMenu({
     setNotice(null)
 
     const createOnce = async () => {
+      const attempt = createAttempt.current
       const idempotencyKey =
-        createIdempotencyKey.current ??
+        (attempt?.name === name ? attempt.key : null) ??
         pendingOrganisationCreationKey(currentUser.id, name) ??
         crypto.randomUUID()
-      createIdempotencyKey.current = idempotencyKey
+      createAttempt.current = { name, key: idempotencyKey }
       markOrganisationCreationPending(currentUser.id, name, idempotencyKey)
 
       const token = await getToken({ skipCache: true })
@@ -156,8 +252,9 @@ export function OrganisationMenu({
       markMembershipSyncPending(organisationId)
       if (userMemberships.revalidate) await userMemberships.revalidate()
       await setActive({ organization: organisationId })
+      navigate('/')
       organisationsState.reload()
-      createIdempotencyKey.current = null
+      createAttempt.current = null
       setNewOrganisationName('')
       setNotice('Organisation created.')
     }
@@ -324,6 +421,7 @@ export function OrganisationMenu({
       )
       if (remaining) {
         await setActive({ organization: remaining.organisationId })
+        navigate('/')
       }
       close()
     } catch (error: unknown) {
@@ -375,6 +473,7 @@ export function OrganisationMenu({
       organisationsState.reload()
       if (remaining && setActive) {
         await setActive({ organization: remaining.organisationId })
+        navigate('/')
       }
       close()
     } catch {
@@ -413,6 +512,15 @@ export function OrganisationMenu({
         className="dialog"
         aria-labelledby="organisation-menu-title"
         onClose={() => {
+          // A closed dialog discards anything still in flight and restarts
+          // both lists from the first page when it is opened again.
+          adminLoadGeneration.current += 1
+          membersPage.current = 1
+          invitationsPage.current = 1
+          membersLoadLock.current = false
+          invitationsLoadLock.current = false
+          setMembersLoadingMore(false)
+          setInvitationsLoadingMore(false)
           setError(null)
           setNotice(null)
         }}
@@ -523,6 +631,16 @@ export function OrganisationMenu({
                   )
                 })}
               </ul>
+              {members.length < membersTotal ? (
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => void loadMoreMembers()}
+                  disabled={membersLoadingMore}
+                >
+                  {membersLoadingMore ? 'Loading more members…' : 'Load more members'}
+                </button>
+              ) : null}
 
               <h3 id="invitations-title">Pending invitations</h3>
               {pendingInvitations.length === 0 ? <p>No pending invitations.</p> : null}
@@ -541,6 +659,18 @@ export function OrganisationMenu({
                   </li>
                 ))}
               </ul>
+              {pendingInvitations.length < invitationsTotal ? (
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => void loadMoreInvitations()}
+                  disabled={invitationsLoadingMore}
+                >
+                  {invitationsLoadingMore
+                    ? 'Loading more invitations…'
+                    : 'Load more invitations'}
+                </button>
+              ) : null}
             </section>
           ) : null}
 

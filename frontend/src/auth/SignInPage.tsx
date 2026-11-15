@@ -6,6 +6,12 @@ function returnPath(redirectUrl: string | null): string {
   // Reject protocol-relative and backslash variants so the return path cannot
   // become an external redirect.
   if (redirectUrl.startsWith('//') || redirectUrl.startsWith('/\\')) return '/'
+  // The value is already decoded by the router. Control characters are refused
+  // because they cannot appear in a path this app produces.
+  for (const character of redirectUrl) {
+    const code = character.codePointAt(0)
+    if (code !== undefined && (code <= 0x1f || code === 0x7f)) return '/'
+  }
   return redirectUrl
 }
 

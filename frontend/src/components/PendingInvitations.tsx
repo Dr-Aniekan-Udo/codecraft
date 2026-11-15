@@ -56,16 +56,26 @@ export function PendingInvitations({
     setNotice(null)
     try {
       await invitation.accept()
-      setHiddenInvitationIds((previous) => ({ ...previous, [invitation.id]: true }))
-      markMembershipSyncPending(invitation.organisation.id)
-      notifyOrganisationsChanged()
-      if (userInvitations.revalidate) await userInvitations.revalidate()
-      if (userMemberships.revalidate) await userMemberships.revalidate()
-      setNotice(
-        `You joined ${invitation.organisation.name}. Switch to it when you are ready.`,
-      )
     } catch {
       setError('The invitation could not be accepted. Try again.')
+      setBusyId(null)
+      return
+    }
+
+    // The invitation is accepted at this point. Record that before refreshing
+    // the lists, so a failed refresh cannot look like a failed acceptance.
+    setHiddenInvitationIds((previous) => ({ ...previous, [invitation.id]: true }))
+    markMembershipSyncPending(invitation.organisation.id)
+    notifyOrganisationsChanged()
+    setNotice(
+      `You joined ${invitation.organisation.name}. Switch to it when you are ready.`,
+    )
+
+    try {
+      if (userInvitations.revalidate) await userInvitations.revalidate()
+      if (userMemberships.revalidate) await userMemberships.revalidate()
+    } catch {
+      setError('The invitation was accepted, but the list could not be refreshed.')
     } finally {
       setBusyId(null)
     }
@@ -83,11 +93,21 @@ export function PendingInvitations({
           declinedOrganisationInvitationIds: { ...current, [invitation.id]: true },
         },
       })
-      setHiddenInvitationIds((previous) => ({ ...previous, [invitation.id]: true }))
-      notifyOrganisationsChanged()
-      if (userInvitations.revalidate) await userInvitations.revalidate()
     } catch {
       setError('The invitation could not be declined. Try again.')
+      setBusyId(null)
+      return
+    }
+
+    // The decline is saved at this point. Record that before refreshing the
+    // list, so a failed refresh cannot look like a failed decline.
+    setHiddenInvitationIds((previous) => ({ ...previous, [invitation.id]: true }))
+    notifyOrganisationsChanged()
+
+    try {
+      if (userInvitations.revalidate) await userInvitations.revalidate()
+    } catch {
+      setError('The invitation was declined, but the list could not be refreshed.')
     } finally {
       setBusyId(null)
     }

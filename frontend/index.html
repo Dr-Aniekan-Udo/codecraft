@@ -13,8 +13,9 @@
       ;(function () {
         var url = new URL(window.location.href)
         if (
-          url.searchParams.has('__clerk_ticket') ||
-          url.searchParams.has('__clerk_status')
+          url.pathname === '/invitations' &&
+          (url.searchParams.has('__clerk_ticket') ||
+            url.searchParams.has('__clerk_status'))
         ) {
           url.searchParams.delete('__clerk_ticket')
           url.searchParams.delete('__clerk_status')

@@ -113,7 +113,7 @@ export function OrganisationSwitcher({
   function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     const items = Array.from(
       menuRef.current?.querySelectorAll<HTMLButtonElement>(
-        '[role="menuitemradio"]',
+        '[role="menuitemradio"], [role="menuitem"]',
       ) ?? [],
     )
     if (items.length === 0) return
@@ -206,6 +206,22 @@ export function OrganisationSwitcher({
               </button>
             )
           })}
+          {userMemberships.hasNextPage && userMemberships.fetchNext ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="org-menu__item"
+              onClick={() => void userMemberships.fetchNext?.()}
+              disabled={userMemberships.isFetching}
+            >
+              <span className="org-menu__check" aria-hidden="true" />
+              <span className="org-menu__name">
+                {userMemberships.isFetching
+                  ? 'Loading more organisations…'
+                  : 'Load more organisations'}
+              </span>
+            </button>
+          ) : null}
         </div>
       ) : null}
 

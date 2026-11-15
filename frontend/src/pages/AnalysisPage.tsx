@@ -74,8 +74,14 @@ function AnalysisContent({
   }
 
   // The analysis must belong to the project named in the address. A record
-  // that answers for another project is treated like a missing page.
-  if (analysis.data.projectId !== projectId) {
+  // that answers for another project is treated like a missing page. The
+  // address is compared case-insensitively, and a missing address is not a
+  // mismatch.
+  const routeProjectId = projectId?.trim().toLowerCase() ?? ''
+  if (
+    routeProjectId !== '' &&
+    analysis.data.projectId.trim().toLowerCase() !== routeProjectId
+  ) {
     return <NotFoundMessage />
   }
 

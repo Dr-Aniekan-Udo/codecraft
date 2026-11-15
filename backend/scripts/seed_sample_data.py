@@ -12,6 +12,7 @@ import getpass
 import sys
 from datetime import datetime
 from typing import NamedTuple
+from uuid import UUID
 
 import psycopg
 
@@ -262,9 +263,41 @@ def _create_samples(
         return _verify_samples(connection, organisations)
 
 
+def _removable_project_ids(rows: list[tuple[object, ...]]) -> list[UUID]:
+    """Return the sample project ids that hold no non-sample analysis.
+
+    A project that has at least one real analysis keeps its sample label, so the
+    next create run is still rejected rather than duplicating samples on top of
+    real work.
+    """
+    removable: list[UUID] = []
+    for row in rows:
+        project_id = row[0]
+        has_real_analysis = row[1]
+        if not isinstance(project_id, UUID) or not isinstance(has_real_analysis, bool):
+            raise RuntimeError("a sample project row has an unexpected type")
+        if not has_real_analysis:
+            removable.append(project_id)
+    return removable
+
+
 def _remove_samples(connection: psycopg.Connection[tuple[object, ...]]) -> int:
     with connection.transaction():
         organisations = _discover_organisations(connection)
+
+        project_rows = connection.execute(
+            """
+            select p.id,
+                   exists (
+                     select 1 from public.analyses as a
+                     where a.project_id = p.id and a.is_sample = false
+                   )
+            from public.projects as p
+            where p.is_sample = true and p.organisation_id = any(%s)
+            """,
+            (organisations,),
+        ).fetchall()
+        removable_ids = _removable_project_ids([tuple(row) for row in project_rows])
 
         analyses = connection.execute(
             """
@@ -275,14 +308,15 @@ def _remove_samples(connection: psycopg.Connection[tuple[object, ...]]) -> int:
         )
         removed = analyses.rowcount
 
-        projects = connection.execute(
-            """
-            delete from public.projects
-            where is_sample = true and organisation_id = any(%s)
-            """,
-            (organisations,),
-        )
-        removed += projects.rowcount
+        if removable_ids:
+            projects = connection.execute(
+                """
+                delete from public.projects
+                where id = any(%s)
+                """,
+                (removable_ids,),
+            )
+            removed += projects.rowcount
     return removed
 
 

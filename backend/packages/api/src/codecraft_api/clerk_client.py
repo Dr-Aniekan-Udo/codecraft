@@ -11,7 +11,7 @@ is 'organisation'.
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, cast
 
 import httpx
@@ -84,6 +84,7 @@ class ClerkOrganisation:
     id: str
     name: str
     created_at: int | None = None
+    private_metadata: dict[str, object] = field(default_factory=dict[str, object])
 
 
 class ClerkClientLike(Protocol):
@@ -127,6 +128,13 @@ class ClerkClientLike(Protocol):
         user_id: str,
         name: str,
     ) -> ClerkOrganisation | None: ...
+
+    async def record_organisation_idempotency_key(
+        self,
+        *,
+        organisation: ClerkOrganisation,
+        idempotency_key: str,
+    ) -> None: ...
 
     async def update_organisation_membership_role(
         self,
@@ -180,7 +188,21 @@ def _organisation_from_payload(payload: _ClerkOrganisationPayload) -> ClerkOrgan
         id=payload.id,
         name=payload.name,
         created_at=payload.created_at,
+        private_metadata=payload.private_metadata,
     )
+
+
+def _idempotency_keys(metadata: dict[str, object]) -> set[str]:
+    keys: set[str] = set()
+    single = metadata.get("codecraft_idempotency_key")
+    if isinstance(single, str) and single:
+        keys.add(single)
+    stored = metadata.get("codecraft_idempotency_keys")
+    if isinstance(stored, list):
+        for value in cast("list[object]", stored):
+            if isinstance(value, str) and value:
+                keys.add(value)
+    return keys
 
 
 def _name_from_user(payload: _ClerkUserPayload) -> str:
@@ -379,8 +401,9 @@ class ClerkClient:
                 ) from exc
 
             for organisation in payload.data:
-                stored_key = organisation.private_metadata.get("codecraft_idempotency_key")
-                if organisation.created_by == user_id and stored_key == idempotency_key:
+                if organisation.created_by == user_id and idempotency_key in _idempotency_keys(
+                    organisation.private_metadata
+                ):
                     return _organisation_from_payload(organisation)
 
             offset += limit
@@ -429,6 +452,22 @@ class ClerkClient:
             offset += limit
             if not payload.data or offset >= payload.total_count:
                 return None
+
+    async def record_organisation_idempotency_key(
+        self,
+        *,
+        organisation: ClerkOrganisation,
+        idempotency_key: str,
+    ) -> None:
+        # A browser can retry with a different key. Record it on the same
+        # organisation so the retry resolves here, and keep the earlier keys.
+        merged: dict[str, object] = dict(organisation.private_metadata)
+        merged["codecraft_idempotency_keys"] = sorted(_idempotency_keys(merged) | {idempotency_key})
+        await self._request(
+            "PATCH",
+            f"/organizations/{organisation.id}",
+            json={"private_metadata": merged},
+        )
 
     async def update_organisation_membership_role(
         self,

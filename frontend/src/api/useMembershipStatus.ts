@@ -123,6 +123,7 @@ export function useMembershipStatus(apiUrl: string): MembershipResult {
 
     const run = async () => {
       let result = await attempt()
+      if (!active) return
       if (result.status === 'unavailable') {
         try {
           await wait(300, controller.signal)
@@ -131,13 +132,20 @@ export function useMembershipStatus(apiUrl: string): MembershipResult {
         }
         if (!active) return
         result = await attempt()
+        if (!active) return
       }
 
-      if (result.status === 'forbidden' && isMembershipSyncPending(organisationId)) {
+      if (
+        (result.status === 'forbidden' || result.status === 'unavailable') &&
+        isMembershipSyncPending(organisationId)
+      ) {
         // The pending marker is the only evidence this tab is waiting for a
         // membership write. Keep checking while it is alive, then fall back to
-        // a refusal instead of showing "syncing" forever.
-        setReported({ organisationId, userId, state: 'syncing', role: null })
+        // the actual result instead of showing "syncing" forever. An
+        // unavailable lookup leaves the hook in its neutral state while retrying.
+        if (result.status === 'forbidden') {
+          setReported({ organisationId, userId, state: 'syncing', role: null })
+        }
         let retryDelay = 1000
         while (active && isMembershipSyncPending(organisationId)) {
           try {
@@ -147,6 +155,7 @@ export function useMembershipStatus(apiUrl: string): MembershipResult {
           }
           if (!active) return
           result = await attempt()
+          if (!active) return
           if (result.status === 'member') {
             clearMembershipSyncPending(organisationId)
             setReported({
@@ -157,7 +166,9 @@ export function useMembershipStatus(apiUrl: string): MembershipResult {
             })
             return
           }
-          if (result.status !== 'forbidden') break
+          if (result.status === 'forbidden') {
+            setReported({ organisationId, userId, state: 'syncing', role: null })
+          }
           retryDelay = Math.min(retryDelay * 2, 8000)
         }
         if (!active) return
