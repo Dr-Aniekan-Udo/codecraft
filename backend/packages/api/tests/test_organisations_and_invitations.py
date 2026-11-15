@@ -1,7 +1,7 @@
 import asyncio
 import time
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
@@ -569,6 +569,7 @@ def test_two_concurrent_requests_for_one_key_create_one_organisation() -> None:
 
     async def send_both() -> tuple[httpx.Response, httpx.Response]:
         payload = {"name": "Design", "idempotency_key": "key-1"}
+        tasks: list[asyncio.Task[httpx.Response]] = []
         async with (
             httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=first_app), base_url="http://test"
@@ -577,18 +578,30 @@ def test_two_concurrent_requests_for_one_key_create_one_organisation() -> None:
                 transport=httpx.ASGITransport(app=second_app), base_url="http://test"
             ) as second,
         ):
-            first_request = asyncio.create_task(
-                first.post("/v1/organisations", json=payload, headers=_authorization())
-            )
-            await clerk.create_started.wait()
-            second_request = asyncio.create_task(
-                second.post("/v1/organisations", json=payload, headers=_authorization())
-            )
-            await asyncio.sleep(0.05)
-            assert database.creation_attempt_calls == [("user_123", "key-1")]
-            assert not second_request.done()
-            clerk.release_create.set()
-            return await asyncio.gather(first_request, second_request)
+            try:
+                first_request = asyncio.create_task(
+                    first.post("/v1/organisations", json=payload, headers=_authorization())
+                )
+                tasks.append(first_request)
+                await asyncio.wait_for(clerk.create_started.wait(), timeout=5)
+                second_request = asyncio.create_task(
+                    second.post("/v1/organisations", json=payload, headers=_authorization())
+                )
+                tasks.append(second_request)
+                await asyncio.sleep(0.05)
+                assert database.creation_attempt_calls == [("user_123", "key-1")]
+                assert not second_request.done()
+                clerk.release_create.set()
+                return await asyncio.wait_for(
+                    asyncio.gather(first_request, second_request), timeout=5
+                )
+            finally:
+                clerk.release_create.set()
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await task
 
     first_response, second_response = asyncio.run(send_both())
 
