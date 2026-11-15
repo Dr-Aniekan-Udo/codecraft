@@ -451,9 +451,16 @@ class Database:
                 (json.dumps({"sub": user_id, "role": _CREATION_ROLE}),),
             )
             await connection.execute(f"set local role {_CREATION_ROLE}")
+            # Every creation for one user takes the user lock first, so two
+            # different keys cannot both pass the key lookups before either
+            # creation finishes. Creations for different users stay independent.
             await connection.execute(
                 "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                (f"{user_id}:{idempotency_key}",),
+                (f"user:{user_id}",),
+            )
+            await connection.execute(
+                "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"key:{user_id}:{idempotency_key}",),
             )
             yield _CreationAttemptStore(connection, user_id, idempotency_key)
 
