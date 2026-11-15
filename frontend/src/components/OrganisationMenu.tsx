@@ -100,6 +100,7 @@ export function OrganisationMenu({
   const [invitationsTotal, setInvitationsTotal] = useState(0)
   const [membersLoadingMore, setMembersLoadingMore] = useState(false)
   const [invitationsLoadingMore, setInvitationsLoadingMore] = useState(false)
+  const [adminLoading, setAdminLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -135,18 +136,33 @@ export function OrganisationMenu({
     const generation = ++adminLoadGeneration.current
     membersPage.current = 1
     invitationsPage.current = 1
-    membersLoadLock.current = false
-    invitationsLoadLock.current = false
+    membersLoadLock.current = true
+    invitationsLoadLock.current = true
     setMembersLoadingMore(false)
     setInvitationsLoadingMore(false)
+    setAdminLoading(true)
     try {
-      const [invitations, memberships] = await Promise.all([
-        activeOrganisation.getInvitations({
+      const invitationsRequest = activeOrganisation
+        .getInvitations({
           status: ['pending'],
           initialPage: 1,
           pageSize: 100,
-        }),
-        activeOrganisation.getMemberships({ initialPage: 1, pageSize: 100 }),
+        })
+        .finally(() => {
+          if (generation === adminLoadGeneration.current) {
+            invitationsLoadLock.current = false
+          }
+        })
+      const membershipsRequest = activeOrganisation
+        .getMemberships({ initialPage: 1, pageSize: 100 })
+        .finally(() => {
+          if (generation === adminLoadGeneration.current) {
+            membersLoadLock.current = false
+          }
+        })
+      const [invitations, memberships] = await Promise.all([
+        invitationsRequest,
+        membershipsRequest,
       ])
       if (generation !== adminLoadGeneration.current) return
       setPendingInvitations(invitations.data)
@@ -156,11 +172,15 @@ export function OrganisationMenu({
     } catch {
       if (generation !== adminLoadGeneration.current) return
       setError('The organisation members could not be loaded.')
+    } finally {
+      if (generation === adminLoadGeneration.current) {
+        setAdminLoading(false)
+      }
     }
   }
 
   const loadMoreMembers = async (): Promise<void> => {
-    if (!canManage || membersLoadLock.current) return
+    if (!canManage || adminLoading || membersLoadLock.current) return
     const generation = adminLoadGeneration.current
     const nextPage = membersPage.current + 1
     membersLoadLock.current = true
@@ -192,7 +212,7 @@ export function OrganisationMenu({
   }
 
   const loadMoreInvitations = async (): Promise<void> => {
-    if (!canManage || invitationsLoadLock.current) return
+    if (!canManage || adminLoading || invitationsLoadLock.current) return
     const generation = adminLoadGeneration.current
     const nextPage = invitationsPage.current + 1
     invitationsLoadLock.current = true
@@ -521,6 +541,7 @@ export function OrganisationMenu({
           invitationsLoadLock.current = false
           setMembersLoadingMore(false)
           setInvitationsLoadingMore(false)
+          setAdminLoading(false)
           setError(null)
           setNotice(null)
         }}
@@ -636,7 +657,7 @@ export function OrganisationMenu({
                   type="button"
                   className="button"
                   onClick={() => void loadMoreMembers()}
-                  disabled={membersLoadingMore}
+                  disabled={membersLoadingMore || adminLoading}
                 >
                   {membersLoadingMore ? 'Loading more members…' : 'Load more members'}
                 </button>
@@ -664,7 +685,7 @@ export function OrganisationMenu({
                   type="button"
                   className="button"
                   onClick={() => void loadMoreInvitations()}
-                  disabled={invitationsLoadingMore}
+                  disabled={invitationsLoadingMore || adminLoading}
                 >
                   {invitationsLoadingMore
                     ? 'Loading more invitations…'
