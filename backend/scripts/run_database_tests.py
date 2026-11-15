@@ -749,6 +749,31 @@ def _check_function_guards(connection: Connection[tuple[object, ...]]) -> None:
     print("function guard checks: null and empty identifiers refused")
 
 
+def _enter_creation_role(connection: Connection[tuple[object, ...]]) -> bool:
+    # The migration role owns codecraft_creation but is not a member. Grant it
+    # for this verification transaction only, then remove it again. The API
+    # role is already a member, so it must not be revoked here.
+    row = connection.execute(
+        "select pg_has_role(current_user, %s, 'member')",
+        (_CREATION_ROLE,),
+    ).fetchone()
+    granted = row is None or row[0] is not True
+    if granted:
+        connection.execute("grant codecraft_creation to current_user")
+    _set_role(connection, _CREATION_ROLE)
+    return granted
+
+
+def _leave_creation_role(connection: Connection[tuple[object, ...]], granted: bool) -> None:
+    try:
+        connection.execute("reset role")
+        if granted:
+            connection.execute("revoke codecraft_creation from current_user")
+    except psycopg.Error:
+        # The transaction is already aborted; rollback restores the grant.
+        pass
+
+
 def _check_creation_policy_access(connection: Connection[tuple[object, ...]]) -> None:
     user_a = f"creation_policy_a_{uuid4().hex}"
     user_b = f"creation_policy_b_{uuid4().hex}"
@@ -761,85 +786,7 @@ def _check_creation_policy_access(connection: Connection[tuple[object, ...]]) ->
             "select set_config('request.jwt.claims', %s, true)",
             (json.dumps({"sub": user_a}),),
         )
-        _set_role(connection, _CREATION_ROLE)
-        connection.execute(
-            """
-            insert into public.organisation_creation_attempts
-                (user_id, idempotency_key, status)
-            values (%s, %s, 'failed')
-            """,
-            (user_a, key_a),
-        )
-        _require(
-            _integer(
-                connection.execute(
-                    """
-                    select count(*)
-                    from public.organisation_creation_attempts
-                    where user_id = %s and idempotency_key = %s
-                    """,
-                    (user_a, key_a),
-                ).fetchone()
-            )
-            == 1,
-            "creation policy blocked the caller's own select",
-        )
-        update_own = connection.execute(
-            """
-            update public.organisation_creation_attempts
-            set status = 'claimed'
-            where user_id = %s and idempotency_key = %s
-            """,
-            (user_a, key_a),
-        )
-        _require(update_own.rowcount == 1, "creation policy blocked the caller's own update")
-
-        connection.execute(
-            "select set_config('request.jwt.claims', %s, true)",
-            (json.dumps({"sub": user_b}),),
-        )
-        connection.execute(
-            """
-            insert into public.organisation_creation_attempts
-                (user_id, idempotency_key, status)
-            values (%s, %s, 'failed')
-            """,
-            (user_b, key_b),
-        )
-        connection.execute(
-            "select set_config('request.jwt.claims', %s, true)",
-            (json.dumps({"sub": user_a}),),
-        )
-        _require(
-            _integer(
-                connection.execute(
-                    """
-                    select count(*)
-                    from public.organisation_creation_attempts
-                    where user_id = %s and idempotency_key = %s
-                    """,
-                    (user_b, key_b),
-                ).fetchone()
-            )
-            == 0,
-            "creation policy exposed another user's row to the caller",
-        )
-        update_other = connection.execute(
-            """
-            update public.organisation_creation_attempts
-            set status = 'claimed'
-            where user_id = %s and idempotency_key = %s
-            """,
-            (user_b, key_b),
-        )
-        _require(update_other.rowcount == 0, "creation policy updated another user's row")
-
-    with connection.transaction(force_rollback=True):
-        connection.execute(
-            "select set_config('request.jwt.claims', %s, true)",
-            (json.dumps({"sub": user_a}),),
-        )
-        _set_role(connection, _CREATION_ROLE)
+        granted = _enter_creation_role(connection)
         try:
             connection.execute(
                 """
@@ -847,12 +794,96 @@ def _check_creation_policy_access(connection: Connection[tuple[object, ...]]) ->
                     (user_id, idempotency_key, status)
                 values (%s, %s, 'failed')
                 """,
-                (user_b, key_c),
+                (user_a, key_a),
             )
-        except errors.InsufficientPrivilege:
-            pass
-        else:
-            raise CheckFailed("creation policy allowed an insert for another user")
+            _require(
+                _integer(
+                    connection.execute(
+                        """
+                        select count(*)
+                        from public.organisation_creation_attempts
+                        where user_id = %s and idempotency_key = %s
+                        """,
+                        (user_a, key_a),
+                    ).fetchone()
+                )
+                == 1,
+                "creation policy blocked the caller's own select",
+            )
+            update_own = connection.execute(
+                """
+                update public.organisation_creation_attempts
+                set status = 'claimed'
+                where user_id = %s and idempotency_key = %s
+                """,
+                (user_a, key_a),
+            )
+            _require(update_own.rowcount == 1, "creation policy blocked the caller's own update")
+
+            connection.execute(
+                "select set_config('request.jwt.claims', %s, true)",
+                (json.dumps({"sub": user_b}),),
+            )
+            connection.execute(
+                """
+                insert into public.organisation_creation_attempts
+                    (user_id, idempotency_key, status)
+                values (%s, %s, 'failed')
+                """,
+                (user_b, key_b),
+            )
+            connection.execute(
+                "select set_config('request.jwt.claims', %s, true)",
+                (json.dumps({"sub": user_a}),),
+            )
+            _require(
+                _integer(
+                    connection.execute(
+                        """
+                        select count(*)
+                        from public.organisation_creation_attempts
+                        where user_id = %s and idempotency_key = %s
+                        """,
+                        (user_b, key_b),
+                    ).fetchone()
+                )
+                == 0,
+                "creation policy exposed another user's row to the caller",
+            )
+            update_other = connection.execute(
+                """
+                update public.organisation_creation_attempts
+                set status = 'claimed'
+                where user_id = %s and idempotency_key = %s
+                """,
+                (user_b, key_b),
+            )
+            _require(update_other.rowcount == 0, "creation policy updated another user's row")
+        finally:
+            _leave_creation_role(connection, granted)
+
+    with connection.transaction(force_rollback=True):
+        connection.execute(
+            "select set_config('request.jwt.claims', %s, true)",
+            (json.dumps({"sub": user_a}),),
+        )
+        granted = _enter_creation_role(connection)
+        try:
+            try:
+                connection.execute(
+                    """
+                    insert into public.organisation_creation_attempts
+                        (user_id, idempotency_key, status)
+                    values (%s, %s, 'failed')
+                    """,
+                    (user_b, key_c),
+                )
+            except errors.InsufficientPrivilege:
+                pass
+            else:
+                raise CheckFailed("creation policy allowed an insert for another user")
+        finally:
+            _leave_creation_role(connection, granted)
 
     print(
         "creation policy access checks: own select/insert/update pass; "
