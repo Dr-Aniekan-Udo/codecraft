@@ -1,3 +1,4 @@
+from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
@@ -9,6 +10,7 @@ from codecraft_api.token_verifier import InvalidTokenError, VerifiedToken
 from codecraft_storage import (
     AnalysisDetail,
     AnalysisSummary,
+    CreationAttemptStore,
     DatabaseLike,
     OrganisationSummary,
     ProjectDetail,
@@ -77,6 +79,11 @@ class FakeDatabase:
     async def set_owner(self, user_id: str, organisation_id: str) -> None: ...
 
     async def delete_membership(self, user_id: str, organisation_id: str) -> None: ...
+
+    def creation_attempt(
+        self, user_id: str, idempotency_key: str
+    ) -> AbstractAsyncContextManager[CreationAttemptStore]:
+        raise NotImplementedError
 
 
 def _settings() -> Settings:

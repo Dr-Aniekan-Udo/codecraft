@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import time
+from contextlib import AbstractAsyncContextManager
 from typing import cast
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from codecraft_api.token_verifier import VerifiedToken
 from codecraft_storage import (
     AnalysisDetail,
     AnalysisSummary,
+    CreationAttemptStore,
     DatabaseLike,
     OrganisationSummary,
     ProjectDetail,
@@ -77,6 +79,11 @@ class FakeDatabase:
 
     async def delete_membership(self, user_id: str, organisation_id: str) -> None:
         self.deletes.append((user_id, organisation_id))
+
+    def creation_attempt(
+        self, user_id: str, idempotency_key: str
+    ) -> AbstractAsyncContextManager[CreationAttemptStore]:
+        raise NotImplementedError
 
 
 class FakeVerifier:

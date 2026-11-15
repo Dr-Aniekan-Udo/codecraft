@@ -7,7 +7,7 @@ can accidentally open a connection that skips those claims.
 
 import json
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -21,6 +21,12 @@ from psycopg_pool import AsyncConnectionPool
 _CONNECTION_KWARGS: dict[str, object] = {"prepare_threshold": None}
 
 _CLAIMS_ROLE = "authenticated"
+
+# Organisation creation is the only write that must survive a second process
+# racing on the same browser key, so it runs as the narrow creation role.
+_CREATION_ROLE = "codecraft_creation"
+
+_CREATION_STATUSES = frozenset({"claimed", "created", "failed"})
 
 # Supabase publishes no Supavisor idle or lifetime timeout. These values are
 # deliberately shorter than the common hosted and OSS defaults so the pool
@@ -89,6 +95,14 @@ class AnalysisDetail:
 class ProjectDetail:
     project: ProjectRecord
     analyses: list[ProjectAnalysisSummary]
+
+
+@dataclass(frozen=True)
+class CreationAttemptRow:
+    """One browser key's outcome: the organisation it produced, if any."""
+
+    status: str
+    organisation_id: str | None
 
 
 def _is_connection_lost(error: OperationalError) -> bool:
@@ -218,6 +232,20 @@ def _analysis_detail(row: tuple[object, ...]) -> AnalysisDetail:
     )
 
 
+def _creation_attempt_row(row: tuple[object, ...]) -> CreationAttemptRow:
+    status, organisation_id = row
+    # The table's check constraint pairs a created status with an organisation
+    # id, so a row that breaks the pairing did not come from this schema.
+    if (
+        not isinstance(status, str)
+        or status not in _CREATION_STATUSES
+        or (organisation_id is not None and not isinstance(organisation_id, str))
+        or (status == "created") != (organisation_id is not None)
+    ):
+        raise TypeError("unexpected row in organisation creation attempt query")
+    return CreationAttemptRow(status=status, organisation_id=organisation_id)
+
+
 def _make_pool(
     connection_string: str,
 ) -> AsyncConnectionPool[AsyncConnection[tuple[object, ...]]]:
@@ -232,6 +260,22 @@ def _make_pool(
         check=AsyncConnectionPool.check_connection,
         open=False,
     )
+
+
+class CreationAttemptStore(Protocol):
+    """The creation-attempt row for one person and one browser key.
+
+    The store is bound to the transaction that holds the key's advisory lock,
+    so every read and write in one attempt sees the same serialised row.
+    """
+
+    async def read(self) -> CreationAttemptRow | None: ...
+
+    async def mark_claimed(self) -> None: ...
+
+    async def mark_created(self, organisation_id: str) -> None: ...
+
+    async def mark_failed(self) -> None: ...
 
 
 class DatabaseLike(Protocol):
@@ -266,6 +310,72 @@ class DatabaseLike(Protocol):
     async def set_owner(self, user_id: str, organisation_id: str) -> None: ...
 
     async def delete_membership(self, user_id: str, organisation_id: str) -> None: ...
+
+    def creation_attempt(
+        self, user_id: str, idempotency_key: str
+    ) -> AbstractAsyncContextManager[CreationAttemptStore]: ...
+
+
+class _CreationAttemptStore:
+    def __init__(
+        self,
+        connection: AsyncConnection[tuple[object, ...]],
+        user_id: str,
+        idempotency_key: str,
+    ) -> None:
+        self._connection = connection
+        self._user_id = user_id
+        self._idempotency_key = idempotency_key
+
+    async def read(self) -> CreationAttemptRow | None:
+        cursor = await self._connection.execute(
+            """
+            select status, organisation_id
+            from public.organisation_creation_attempts
+            where user_id = %s and idempotency_key = %s
+            """,
+            (self._user_id, self._idempotency_key),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return _creation_attempt_row(row)
+
+    async def mark_claimed(self) -> None:
+        await self._connection.execute(
+            """
+            insert into public.organisation_creation_attempts
+                (user_id, idempotency_key, status, organisation_id, updated_at)
+            values (%s, %s, 'claimed', null, now())
+            on conflict (user_id, idempotency_key) do update
+            set status = 'claimed', organisation_id = null, updated_at = now()
+            """,
+            (self._user_id, self._idempotency_key),
+        )
+
+    async def mark_created(self, organisation_id: str) -> None:
+        await self._connection.execute(
+            """
+            insert into public.organisation_creation_attempts
+                (user_id, idempotency_key, status, organisation_id, updated_at)
+            values (%s, %s, 'created', %s, now())
+            on conflict (user_id, idempotency_key) do update
+            set status = 'created', organisation_id = excluded.organisation_id, updated_at = now()
+            """,
+            (self._user_id, self._idempotency_key, organisation_id),
+        )
+
+    async def mark_failed(self) -> None:
+        await self._connection.execute(
+            """
+            insert into public.organisation_creation_attempts
+                (user_id, idempotency_key, status, organisation_id, updated_at)
+            values (%s, %s, 'failed', null, now())
+            on conflict (user_id, idempotency_key) do update
+            set status = 'failed', organisation_id = null, updated_at = now()
+            """,
+            (self._user_id, self._idempotency_key),
+        )
 
 
 class Database:
@@ -323,6 +433,29 @@ class Database:
             connection.transaction(),
         ):
             yield connection
+
+    @asynccontextmanager
+    async def creation_attempt(
+        self, user_id: str, idempotency_key: str
+    ) -> AsyncGenerator[CreationAttemptStore]:
+        """Run one creation attempt as the creation role.
+
+        The advisory lock is transaction-scoped, so a second process racing on
+        the same browser key waits here instead of both calling the identity
+        provider. Claims are set before the role switch because that role's
+        policies read auth.jwt().
+        """
+        async with self._request_pool.connection() as connection, connection.transaction():
+            await connection.execute(
+                "select set_config('request.jwt.claims', %s, true)",
+                (json.dumps({"sub": user_id, "role": _CREATION_ROLE}),),
+            )
+            await connection.execute(f"set local role {_CREATION_ROLE}")
+            await connection.execute(
+                "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"{user_id}:{idempotency_key}",),
+            )
+            yield _CreationAttemptStore(connection, user_id, idempotency_key)
 
     async def is_member(self, user_id: str, organisation_id: str) -> bool:
         async with self.request_connection(user_id) as connection:

@@ -1,4 +1,7 @@
+import asyncio
 import time
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
@@ -18,6 +21,8 @@ from codecraft_api.token_verifier import InvalidTokenError, VerifiedToken
 from codecraft_storage import (
     AnalysisDetail,
     AnalysisSummary,
+    CreationAttemptRow,
+    CreationAttemptStore,
     DatabaseLike,
     OrganisationSummary,
     ProjectDetail,
@@ -67,6 +72,13 @@ class FakeDatabase:
         self.deleted_memberships: list[tuple[str, str]] = []
         self.organisation_deletes: list[str] = []
         self.owners: list[tuple[str, str]] = []
+        self.attempts: dict[tuple[str, str], CreationAttemptRow] = {}
+        # Stands in for the database's advisory lock: two processes sharing a
+        # key must not both reach the identity provider.
+        self.creation_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self.creation_attempt_calls: list[tuple[str, str]] = []
+        self.mark_created_failures = 0
+        self.owner_write_failures = 0
 
     async def open(self) -> None: ...
 
@@ -112,12 +124,53 @@ class FakeDatabase:
     async def upsert_membership(self, user_id: str, organisation_id: str) -> None: ...
 
     async def set_owner(self, user_id: str, organisation_id: str) -> None:
+        if self.owner_write_failures > 0:
+            self.owner_write_failures -= 1
+            raise RuntimeError("the owner row could not be written")
         self.owners.append((user_id, organisation_id))
         if not any(item.organisation_id == organisation_id for item in self.organisations):
             self.organisations.append(OrganisationSummary(organisation_id, True, _CREATED_AT))
 
     async def delete_membership(self, user_id: str, organisation_id: str) -> None:
         self.deleted_memberships.append((user_id, organisation_id))
+
+    @asynccontextmanager
+    async def creation_attempt(
+        self, user_id: str, idempotency_key: str
+    ) -> AsyncGenerator[CreationAttemptStore]:
+        key = (user_id, idempotency_key)
+        lock = self.creation_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            self.creation_attempt_calls.append(key)
+            yield FakeCreationAttemptStore(self, key)
+
+
+class FakeCreationAttemptStore:
+    def __init__(self, database: FakeDatabase, key: tuple[str, str]) -> None:
+        self._database = database
+        self._key = key
+
+    def _write(self, status: str, organisation_id: str | None) -> None:
+        # The real table's check constraint pairs a created status with an
+        # organisation id; the fake rejects any row that breaks the pairing.
+        if (status == "created") != (organisation_id is not None):
+            raise ValueError("a created attempt must name an organisation")
+        self._database.attempts[self._key] = CreationAttemptRow(status, organisation_id)
+
+    async def read(self) -> CreationAttemptRow | None:
+        return self._database.attempts.get(self._key)
+
+    async def mark_claimed(self) -> None:
+        self._write("claimed", None)
+
+    async def mark_created(self, organisation_id: str) -> None:
+        if self._database.mark_created_failures > 0:
+            self._database.mark_created_failures -= 1
+            raise RuntimeError("the creation attempt row could not be written")
+        self._write("created", organisation_id)
+
+    async def mark_failed(self) -> None:
+        self._write("failed", None)
 
 
 class FakeClerk:
@@ -138,6 +191,8 @@ class FakeClerk:
         self.created: list[dict[str, str]] = []
         self.deleted: list[str] = []
         self.created_organisations: list[dict[str, str]] = []
+        self.recorded_idempotency_keys: list[tuple[str, str]] = []
+        self.created_at_offset_ms = 0
         self.role_changes: list[dict[str, str]] = []
         self.removed_memberships: list[dict[str, str]] = []
         self.get_user_calls: list[str] = []
@@ -183,7 +238,7 @@ class FakeClerk:
         organisation = ClerkOrganisation(
             id=f"org_created_{self._organisation_count}",
             name=name,
-            created_at=int(time.time() * 1000),
+            created_at=int(time.time() * 1000) - self.created_at_offset_ms,
         )
         self.created_organisations.append(
             {
@@ -232,6 +287,19 @@ class FakeClerk:
                 return organisation
         return None
 
+    async def record_organisation_idempotency_key(
+        self,
+        *,
+        organisation: ClerkOrganisation,
+        idempotency_key: str,
+    ) -> None:
+        self._raise_injected_error("record_organisation_idempotency_key")
+        self.recorded_idempotency_keys.append((organisation.id, idempotency_key))
+        for created_by, created in self._created_organisations:
+            if created.id == organisation.id:
+                self._organisations_by_idempotency_key[(created_by, idempotency_key)] = organisation
+                break
+
     async def update_organisation_membership_role(
         self,
         *,
@@ -279,6 +347,7 @@ def _client(
     *,
     organisation_id: str | None = "org_1",
     role: str | None = ADMIN_ROLE,
+    raise_server_exceptions: bool = True,
 ) -> httpx.Client:
     return cast(
         "httpx.Client",
@@ -288,7 +357,8 @@ def _client(
                 database=database,
                 verifier=FakeVerifier(organisation_id=organisation_id, role=role),
                 clerk=clerk,
-            )
+            ),
+            raise_server_exceptions=raise_server_exceptions,
         ),
     )
 
@@ -408,6 +478,44 @@ def test_create_organisation_same_name_after_ten_seconds_creates_again() -> None
     assert len(clerk.created_organisations) == 1
 
 
+def test_reused_recent_organisation_records_the_new_key_for_a_later_retry() -> None:
+    database = FakeDatabase()
+    clerk = FakeClerk()
+    with _client(database, clerk) as client:
+        first = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-1"},
+            headers=_authorization(),
+        )
+        second = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-2"},
+            headers=_authorization(),
+        )
+        assert clerk.recorded_idempotency_keys == [("org_created_1", "key-2")]
+        # Leave the ten-second name window, so only the stored key can match.
+        clerk.created_at_offset_ms = 11_000
+        retried = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-2"},
+            headers=_authorization(),
+        )
+        earlier = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-1"},
+            headers=_authorization(),
+        )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert retried.status_code == 200
+    assert earlier.status_code == 200
+    assert first.json() == {"organisation_id": "org_created_1"}
+    assert second.json() == {"organisation_id": "org_created_1"}
+    assert retried.json() == {"organisation_id": "org_created_1"}
+    assert earlier.json() == {"organisation_id": "org_created_1"}
+    assert len(clerk.created_organisations) == 1
+
+
 def test_create_organisation_retries_by_idempotency_key_after_conflict() -> None:
     database = FakeDatabase()
     raced = ClerkOrganisation(id="org_raced", name="Design")
@@ -429,6 +537,84 @@ def test_create_organisation_retries_by_idempotency_key_after_conflict() -> None
     assert clerk.find_by_key_calls == 2
     assert clerk.created_organisations == []
     assert database.owners == [("user_123", "org_raced")]
+
+
+def test_two_concurrent_requests_for_one_key_create_one_organisation() -> None:
+    database = FakeDatabase()
+    clerk = FakeClerk()
+    # Separate apps mean separate in-process locks, so only the database's
+    # per-key lock can stop both requests from reaching Clerk.
+    first_app = create_app(_settings(), database=database, verifier=FakeVerifier(), clerk=clerk)
+    second_app = create_app(_settings(), database=database, verifier=FakeVerifier(), clerk=clerk)
+
+    async def send_both() -> tuple[httpx.Response, httpx.Response]:
+        payload = {"name": "Design", "idempotency_key": "key-1"}
+        async with (
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=first_app), base_url="http://test"
+            ) as first,
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=second_app), base_url="http://test"
+            ) as second,
+        ):
+            return await asyncio.gather(
+                first.post("/v1/organisations", json=payload, headers=_authorization()),
+                second.post("/v1/organisations", json=payload, headers=_authorization()),
+            )
+
+    first_response, second_response = asyncio.run(send_both())
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert first_response.json() == {"organisation_id": "org_created_1"}
+    assert second_response.json() == {"organisation_id": "org_created_1"}
+    assert len(clerk.created_organisations) == 1
+    assert database.creation_attempt_calls == [
+        ("user_123", "key-1"),
+        ("user_123", "key-1"),
+    ]
+
+
+def test_retry_after_the_attempt_row_failed_returns_the_created_organisation() -> None:
+    database = FakeDatabase()
+    database.mark_created_failures = 1
+    clerk = FakeClerk()
+    with _client(database, clerk, raise_server_exceptions=False) as client:
+        first = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-1"},
+            headers=_authorization(),
+        )
+        retried = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-1"},
+            headers=_authorization(),
+        )
+    assert first.status_code == 500
+    assert retried.status_code == 200
+    assert retried.json() == {"organisation_id": "org_created_1"}
+    assert len(clerk.created_organisations) == 1
+
+
+def test_retry_after_the_owner_write_failed_returns_the_created_organisation() -> None:
+    database = FakeDatabase()
+    database.owner_write_failures = 1
+    clerk = FakeClerk()
+    with _client(database, clerk, raise_server_exceptions=False) as client:
+        first = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-1"},
+            headers=_authorization(),
+        )
+        retried = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-1"},
+            headers=_authorization(),
+        )
+    assert first.status_code == 500
+    assert retried.status_code == 200
+    assert retried.json() == {"organisation_id": "org_created_1"}
+    assert len(clerk.created_organisations) == 1
 
 
 @pytest.mark.parametrize(
@@ -574,6 +760,7 @@ def test_create_organisation_maps_clerk_errors(clerk_status: int) -> None:
     expected = 422 if clerk_status in (400, 409, 422) else 502
     assert response.status_code == expected
     assert response.json()["detail"] == "The organisation could not be created"
+    assert database.attempts[("user_123", "key-1")].status == "failed"
 
 
 def test_invitation_requires_admin_and_active_organisation() -> None:

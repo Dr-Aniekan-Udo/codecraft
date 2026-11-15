@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from starlette.concurrency import run_in_threadpool
 
-from codecraft_api.clerk_client import ClerkApiError, ClerkClientLike, ClerkOrganisation
+from codecraft_api.clerk_client import ClerkApiError, ClerkClientLike
 from codecraft_api.config import Settings
 from codecraft_api.organisation_names import personal_organisation_name
 from codecraft_api.token_verifier import (
@@ -285,50 +285,98 @@ def create_router(
         user_id: str,
         name: str,
         idempotency_key: str,
-    ) -> ClerkOrganisation:
-        existing = await clerk.find_organisation_by_idempotency_key(
-            user_id=user_id,
-            idempotency_key=idempotency_key,
-        )
-        if existing is not None:
-            # The first attempt may have created the organisation and then failed
-            # before writing the local row. The owner write is idempotent, so
-            # repair it before returning the same organisation.
-            await database.set_owner(user_id, existing.id)
-            return existing
+    ) -> str:
+        # The whole decision runs under the storage layer's per-key advisory
+        # lock, so a second API process waits instead of calling Clerk too. The
+        # context commits its transaction on a normal exit and rolls it back on
+        # an exception, which is why a Clerk failure is marked and raised
+        # outside the block.
+        failure: ClerkApiError | None = None
+        resolved: str | None = None
+        async with database.creation_attempt(user_id, idempotency_key) as attempt:
+            row = await attempt.read()
+            if row is not None and row.status == "created" and row.organisation_id is not None:
+                # The owner write is the idempotent upsert; repair it here in case
+                # an earlier request committed the attempt and then failed.
+                await database.set_owner(user_id, row.organisation_id)
+                return row.organisation_id
 
-        # A second browser can use a different idempotency key for the same
-        # attempt. Reuse an organisation with the same name created in the last
-        # 10 seconds instead of creating another one.
-        recent = await clerk.find_recent_organisation_by_name(user_id=user_id, name=name)
-        if recent is not None:
-            await database.set_owner(user_id, recent.id)
-            return recent
-
-        try:
-            organisation = await clerk.create_organisation(
-                name=name,
-                created_by=user_id,
-                idempotency_key=idempotency_key,
-            )
-        except ClerkApiError as exc:
-            # Another API process may have created the organisation between our
-            # lookup and this call. The idempotency key is the tie-breaker.
-            if exc.status_code == 409:
-                raced = await clerk.find_organisation_by_idempotency_key(
+            try:
+                existing = await clerk.find_organisation_by_idempotency_key(
                     user_id=user_id,
                     idempotency_key=idempotency_key,
                 )
+                if existing is not None:
+                    # The first attempt may have created the organisation and then
+                    # failed before writing the local row. The owner write is
+                    # idempotent, so repair it before returning the same
+                    # organisation.
+                    await attempt.mark_created(existing.id)
+                    await database.set_owner(user_id, existing.id)
+                    resolved = existing.id
+                else:
+                    # A second browser can use a different idempotency key for the
+                    # same attempt. Reuse an organisation with the same name
+                    # created in the last 10 seconds instead of creating another
+                    # one.
+                    recent = await clerk.find_recent_organisation_by_name(
+                        user_id=user_id, name=name
+                    )
+                    if recent is not None:
+                        # Record this key on the reused organisation before
+                        # returning it, so a retry with the same key still
+                        # resolves here after the name window.
+                        await clerk.record_organisation_idempotency_key(
+                            organisation=recent,
+                            idempotency_key=idempotency_key,
+                        )
+                        await attempt.mark_created(recent.id)
+                        await database.set_owner(user_id, recent.id)
+                        resolved = recent.id
+                    else:
+                        await attempt.mark_claimed()
+                        created = await clerk.create_organisation(
+                            name=name,
+                            created_by=user_id,
+                            idempotency_key=idempotency_key,
+                        )
+                        await attempt.mark_created(created.id)
+                        # The signed webhook will write the same row later. Writing
+                        # it here too makes the new organisation visible to the next
+                        # request. Both writes are idempotent.
+                        await database.set_owner(user_id, created.id)
+                        resolved = created.id
+            except ClerkApiError as exc:
+                raced: str | None = None
+                if exc.status_code == 409:
+                    # Another API process may have created the organisation
+                    # between our lookup and this call. The idempotency key is
+                    # the tie-breaker.
+                    try:
+                        found = await clerk.find_organisation_by_idempotency_key(
+                            user_id=user_id,
+                            idempotency_key=idempotency_key,
+                        )
+                    except ClerkApiError:
+                        found = None
+                    if found is not None:
+                        await attempt.mark_created(found.id)
+                        await database.set_owner(user_id, found.id)
+                        raced = found.id
                 if raced is not None:
-                    await database.set_owner(user_id, raced.id)
-                    return raced
-            raise
+                    resolved = raced
+                else:
+                    # The failed row must commit, so record it and leave the
+                    # context normally; the original error is raised below.
+                    failure = exc
+                    await attempt.mark_failed()
 
-        # The signed webhook will write the same row later. Writing it here too
-        # makes the new organisation visible to the next request. Both writes are
-        # idempotent.
-        await database.set_owner(user_id, organisation.id)
-        return organisation
+        if failure is not None:
+            raise failure
+        if resolved is None:
+            # Every path above either returned inside the context or set an id.
+            raise RuntimeError("creation attempt committed without an organisation")
+        return resolved
 
     def _creation_failure(exc: ClerkApiError) -> HTTPException:
         status_code = (
@@ -348,14 +396,14 @@ def create_router(
         token = await _verified_token(request, verifier)
         async with creation_lock:
             try:
-                organisation = await _create_or_reuse_organisation(
+                organisation_id = await _create_or_reuse_organisation(
                     user_id=token.user_id,
                     name=body.name,
                     idempotency_key=body.idempotency_key,
                 )
             except ClerkApiError as exc:
                 raise _creation_failure(exc) from None
-        return OrganisationCreationResponse(organisation_id=organisation.id)
+        return OrganisationCreationResponse(organisation_id=organisation_id)
 
     @router.post("/v1/organisations/personal", response_model=OrganisationCreationResponse)
     async def create_personal_organisation(
@@ -373,14 +421,14 @@ def create_router(
                 if owned is not None:
                     return OrganisationCreationResponse(organisation_id=owned.organisation_id)
 
-                organisation = await _create_or_reuse_organisation(
+                organisation_id = await _create_or_reuse_organisation(
                     user_id=token.user_id,
                     name=personal_organisation_name(),
                     idempotency_key=body.idempotency_key,
                 )
             except ClerkApiError as exc:
                 raise _creation_failure(exc) from None
-        return OrganisationCreationResponse(organisation_id=organisation.id)
+        return OrganisationCreationResponse(organisation_id=organisation_id)
 
     @router.patch(
         "/v1/organisations/{organisation_id}/members/{member_user_id}",
