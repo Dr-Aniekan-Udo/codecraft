@@ -50,6 +50,7 @@ _FIXTURE_ROWS = {
     "explanations": 1,
     "file_roles": 1,
     "insights": 1,
+    "organisation_creation_attempts": 1,
 }
 _FUNCTION = "public.delete_organisation_rows(text)"
 _LINKED_PROJECT_FILE = Path(__file__).resolve().parents[2] / "supabase" / ".temp" / "project-ref"
@@ -280,6 +281,18 @@ def _insert_organisation_rows(
         values (%s, %s, 'cycle', '{}'::jsonb)
         """,
         (organisation_id, analysis_id),
+    )
+    connection.execute(
+        """
+        insert into public.organisation_creation_attempts
+            (user_id, idempotency_key, status, organisation_id)
+        values (%s, %s, 'created', %s)
+        """,
+        (
+            f"user_creation_{organisation_id}",
+            f"key_creation_{organisation_id}",
+            organisation_id,
+        ),
     )
 
 
@@ -683,6 +696,15 @@ def _check_deletion(connection: Connection[tuple[object, ...]]) -> None:
                 f"{table} of the other organisation changed",
             )
         _require(
+            _count_for_organisation(connection, _CREATION_TABLE, organisation_a) == 0,
+            "the deleted organisation's creation-attempt rows were not removed",
+        )
+        _require(
+            _count_for_organisation(connection, _CREATION_TABLE, organisation_b)
+            == _FIXTURE_ROWS[_CREATION_TABLE],
+            "the other organisation's creation-attempt rows changed",
+        )
+        _require(
             _count_for_organisation(connection, "membership", organisation_a) == 0,
             "the deleted organisation's membership rows were not removed",
         )
@@ -696,8 +718,8 @@ def _check_deletion(connection: Connection[tuple[object, ...]]) -> None:
         )
 
     print(
-        "deletion checks: named organisation removed across eight tables "
-        "and membership; other organisation kept"
+        "deletion checks: named organisation removed across eight tables, "
+        "creation attempts and membership; other organisation kept"
     )
 
 

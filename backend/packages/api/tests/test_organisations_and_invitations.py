@@ -134,6 +134,11 @@ class FakeDatabase:
     async def delete_membership(self, user_id: str, organisation_id: str) -> None:
         self.deleted_memberships.append((user_id, organisation_id))
 
+    def delete_organisation_attempts(self, organisation_id: str) -> None:
+        for key in list(self.attempts):
+            if self.attempts[key].organisation_id == organisation_id:
+                del self.attempts[key]
+
     @asynccontextmanager
     async def creation_attempt(
         self, user_id: str, idempotency_key: str
@@ -641,6 +646,25 @@ def test_retry_after_the_owner_write_failed_returns_the_created_organisation() -
     assert retried.json() == {"organisation_id": "org_created_1"}
     assert len(clerk.created_organisations) == 1
     assert clerk.find_by_key_calls == 2
+
+
+def test_retry_after_the_organisation_is_deleted_does_not_return_it() -> None:
+    database = FakeDatabase()
+    deleted_organisation = "org_deleted"
+    database.attempts[("user_123", "key-1")] = CreationAttemptRow("created", deleted_organisation)
+    # The delete routine removes the attempt row with the organisation.
+    database.delete_organisation_attempts(deleted_organisation)
+    clerk = FakeClerk()
+    with _client(database, clerk) as client:
+        response = client.post(
+            "/v1/organisations",
+            json={"name": "Design", "idempotency_key": "key-1"},
+            headers=_authorization(),
+        )
+    assert response.status_code == 200
+    assert response.json() != {"organisation_id": deleted_organisation}
+    assert ("user_123", deleted_organisation) not in database.owners
+    assert len(clerk.created_organisations) == 1
 
 
 @pytest.mark.parametrize(
