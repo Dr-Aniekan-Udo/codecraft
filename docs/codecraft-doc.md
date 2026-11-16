@@ -60,7 +60,9 @@ An edge exists only when a reference resolves to a real file or a real table in 
 - Live progress while a repository is analysed.
 - A chat panel answered by an agent that looks facts up rather than recalling them.
 - Evaluations that measure the explanations and the agent, so changes are judged by a number.
-- Framework knowledge through adapters: Next.js and Express for TypeScript and JavaScript, FastAPI for Python, and the Go standard HTTP package for Go. Each adapter recovers only exact routes.
+- Framework knowledge through adapters: Next.js, React, NestJS and Express for TypeScript and JavaScript, Flask and FastAPI for Python, and the Go standard HTTP package and Gin for Go. Each adapter recovers only exact routes, and some recover roles only.
+- Dependencies declared in manifests are read and compared with what the source imports. The comparison is shown as coverage, not as extra nodes.
+- Cross-language links, where a literal route on one side matches a literal call on the other side, drawn only when both ends are exact.
 
 ## Language rules
 
@@ -82,8 +84,8 @@ Each rule below is a constraint on the resolver. Where the rule says "reported",
 
 - Relative imports that climb above the top-level package are reported as unresolved.
 - Packages without an initialisation file are followed as namespace packages, and coverage notes that they were.
-- Star imports create an edge to the module. The names they bring in are unknown unless the module declares them, and the map says so.
-- Imports under a type-checking guard are type-only. Imports inside a function are lazy. Imports inside an optional-dependency guard are optional. Each is its own edge kind.
+- Star imports create an edge to the module. The names they bring in are unknown to the parser, so the reference is marked as names not enumerated. The map shows that mark on the file, and the coverage report counts it.
+- Imports under a type-checking guard are type-only. Imports inside a function are lazy. Imports inside an optional-dependency guard are optional. Each is an import edge with a label for its guard, so the edge kind stays the same for every consumer and the label says when the import runs.
 - `importlib.import_module` and `__import__` with a literal string are edges. Computed names are reported.
 - When a stub file and a source file both exist, they describe one module.
 - Files that cannot be parsed, use a legacy encoding or contain legacy syntax are reported with the reason.
@@ -109,6 +111,13 @@ Each rule below is a constraint on the resolver. Where the rule says "reported",
 - SQL is read for one declared dialect. A table reference is an edge only when the table is created in the input. Migrations are applied in order so the map shows the final state and keeps the history. Dynamic SQL built in strings is reported as unresolved.
 - Dockerfile copies from a build stage are edges to that stage. A copy is an edge to a file only if the build context includes it, so ignore rules are read.
 
+**Dependencies and manifests.** A manifest declares packages. Source files use them. The two are compared, and the comparison is shown as coverage.
+
+- A package declared in a manifest and never imported is reported as declared but unused. That is a fact to show, not an error.
+- A package imported by source and declared in no manifest is reported as an unresolved reference, with the reason. Packages provided by the language itself are external, not unresolved.
+- Declared packages are not drawn as nodes. Third-party code stays external, as it is for dependency folders.
+- Lockfiles are read only to confirm versions. Transitive packages are not drawn.
+
 ## Out of scope, and why
 
 Each of these is something a model will propose, because each sounds like an improvement. The reason matters more than the refusal.
@@ -117,9 +126,8 @@ Each of these is something a model will propose, because each sounds like an imp
 - **The agent walking the graph itself.** The agent picks a starting point and a direction. The same arithmetic that draws the map does the walk. If the model does the walking, invented structure returns.
 - **Private repositories.** This requires a user token that would then have to be stored. Not in this version.
 - **Approximate routes.** If a route's method and full path cannot both be recovered from the syntax, nothing is shown. A wrong route is the same failure as an invented edge.
-- **Cross-language edges.** A TypeScript call matching a Python route is heuristic, and it is the first place a guessed edge would appear.
 - **Third-party code.** Packages in dependency folders, the Go module cache and Python environments are external. Analysing them would multiply the map and mix someone else's structure into this one.
-- **Other web frameworks.** Frameworks beyond the four adapters in version 1 are not supported yet. Each one is added as its own adapter, and each must first state which of its routes can be recovered exactly.
+- **Other web frameworks.** Frameworks beyond the version 1 list are not supported yet. Each one is added as its own adapter, and each must first state which of its routes can be recovered exactly.
 - **Documentation frameworks.** Their content is prose, and prose is excluded from the map.
 - **Notebooks, Vue, Svelte and Astro.** Each needs its own parser. Until one exists, these files are reported as skipped with a reason, so the map never pretends to understand a file it cannot read.
 - **Languages beyond the four listed and the configuration formats listed.** Not because they are hard, but because getting these right is the whole proposition.
@@ -157,7 +165,7 @@ A person pastes a public GitHub URL or chooses a local path. The analyzer fetche
 
 ## Frameworks
 
-Version 1 has one framework adapter for each language: Next.js and Express for TypeScript and JavaScript, FastAPI for Python, and the Go standard HTTP package for Go. An adapter reads a framework's conventions on top of the parser's output, using only facts the parser already produced. It gives files roles, and it recovers routes only when both the method and the full path are exact.
+Version 1 has these adapters: Next.js, React, NestJS and Express for TypeScript and JavaScript; Flask and FastAPI for Python; and the Go standard HTTP package and Gin for Go. An adapter reads a framework's conventions on top of the parser's output, using only facts the parser already produced. It gives files roles, and it recovers routes only when both the method and the full path are exact. An adapter may give roles without recovering any routes, and it says so.
 
 **Next.js.** Roles come from file conventions: page, layout, route handler, loading, error, not-found, template, middleware, instrumentation and configuration files, plus the pages-router convention. Routes come from route handler exports named for an HTTP method, and from page locations. Dynamic segments are shown in their written form, never expanded to guessed values. Route groups, parallel-route slots and intercepting routes are recognised so their paths are read correctly. Server actions are marked by their `"use server"` directive, at file level or function level. Client boundaries are shown, so the map can display where server and client code meet.
 
@@ -167,7 +175,21 @@ Version 1 has one framework adapter for each language: Next.js and Express for T
 
 **Go standard HTTP package.** Roles come from package and file conventions: command entry points, handlers, and internal packages. Routes are shown when a pattern registered on a mux in the same file is a string literal combining a method and a path, as the standard library accepts since Go 1.22. A mux passed between files, or a pattern built from variables, is composed or computed, so those routes are not shown.
 
-Every adapter is tested with fixtures that contain both a literal route, which must be shown, and a composed route, which must be absent. Adding a framework later follows the same steps: it states its exact cases before it is built, and its fixtures come with it.
+**React.** Roles come from file conventions for components and hooks. React does not define routes in the way the server frameworks do, so this adapter recovers no routes and says so in the coverage report.
+
+**NestJS.** Roles come from file name suffixes for controllers, services, modules, entities and guards. Routes are shown when the controller's path and the method's path are both literal decorator arguments in the same file. A path built from a variable or a constant imported from another file is absent.
+
+**Flask.** Roles come from folder and naming conventions for views, models, services and forms, with singular and plural names accepted. Routes are shown when a route decorator on an application object created in the same file has a literal path and a method. Routes on a blueprint are shown only when the blueprint's registration with a prefix is in the same file. A blueprint registered elsewhere composes its path across files, so those routes are absent.
+
+**Gin.** Roles come from package and file conventions, as for the standard HTTP package. Routes are shown when a method call on an engine or route group in the same file has a literal path, and any group prefix is also a literal in that file. An engine or group passed between files, or a path built from variables, is composed or computed, so those routes are absent.
+
+Every adapter is tested with fixtures that contain both a literal route, which must be shown, and a composed route, which must be absent. Each adapter's exact cases are confirmed against that framework's documentation when its phase begins. Adding a framework later follows the same steps: it states its exact cases before it is built, and its fixtures come with it.
+
+## Cross-language links
+
+A link connects code in one language to code in another only when both ends are literal and match exactly. The main case is a frontend call and a backend route with the same method and the same full path. A call built from a variable, a base address read from configuration, or a path that differs by case or by a trailing slash is absent.
+
+CORS is a configuration setting on the server, not a link between two files. It is shown as a fact about that file, not as an edge. A repository with two languages shows each language's graph separately; links appear only after the adapters have recovered routes on both sides.
 
 ## The interface
 
@@ -300,7 +322,9 @@ These are settled. An agent working on the project may propose a change in writi
 - The two identity-provider roles, admin and member, and the rule that only the owner promotes or demotes. Role changes and member removals go through the backend. The accepted browser-delete risk for admins is recorded in the design and is not to be removed without a new decision.
 - The signing key for agent tokens, its lifetime, and the rule that the agent holds no signing key.
 - The edge rule and resolver semantics, per language, including which references are reported as unresolved.
-- The four framework adapters in version 1, and the exactness rule each one follows.
+- The framework adapters in version 1, and the exactness rule each one follows.
+- The cross-language rule: links only when both ends are literal and match exactly.
+- The manifest comparison rule: declared packages are shown as coverage, not drawn as nodes.
 - The TypeScript resolver as the authority for TypeScript and JavaScript resolution, and its pinned version.
 - Adding, removing or upgrading a dependency. This is enforced through the agent tool's permission settings, not only by instruction.
 - Environment variable names, and which of them are secret.
@@ -316,6 +340,8 @@ These are settled. An agent working on the project may propose a change in writi
 - The retention period for stored analyses and traces.
 - The default build context for Go and the default import root for Python, confirmed against real repositories.
 - The exact folding threshold, tuned against real repositories.
+- How tables defined through an ORM in code are recovered, under the exactness rule. Decided when the database phase for repositories begins.
+- Infrastructure-as-code beyond the configuration formats listed, such as Terraform and Kubernetes manifests. Decided when that scope is proposed.
 
 ## What has to be true before this ships
 
