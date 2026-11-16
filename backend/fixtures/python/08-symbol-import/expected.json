@@ -1,0 +1,87 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language python; tree-sitter 0.26.0; tree-sitter-python 0.25.0)",
+  "python": {
+    "import_root": ".",
+    "import_root_rule": "repository root"
+  },
+  "files": [
+    {
+      "path": "app.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:683d48c1c5caa99253a8d9bae4d978ae4820828064b9711207c5c5a5d9091dea",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "app",
+        "package_kind": null,
+        "is_package": false
+      }
+    },
+    {
+      "path": "shapes.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 2,
+      "content_hash": "sha256:3d2b8b0e6e2de7ed6a1e6a848ebd31fa457b3ee3c895cc834e36ab79ba2a0748",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "shapes",
+        "package_kind": null,
+        "is_package": false
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "app.py",
+      "target": "shapes.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "symbol_references": [
+    {
+      "source": "app.py",
+      "module": "shapes",
+      "name": "width",
+      "status": "symbol of resolved module, not verified",
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "star_import_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 2,
+    "resolved": 1,
+    "symbols": 1,
+    "star_imports": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 0,
+    "python": {
+      "namespace_packages": 0
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 2,
+    "parsed": 2,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

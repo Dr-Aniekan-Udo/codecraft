@@ -1,0 +1,126 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language python; tree-sitter 0.26.0; tree-sitter-python 0.25.0)",
+  "python": {
+    "import_root": ".",
+    "import_root_rule": "repository root"
+  },
+  "files": [
+    {
+      "path": "flatpkg/__init__.py",
+      "folder": "flatpkg",
+      "language": "python",
+      "line_count": 0,
+      "content_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "flatpkg",
+        "package_kind": "regular",
+        "is_package": true
+      }
+    },
+    {
+      "path": "flatpkg/alpha.py",
+      "folder": "flatpkg",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:91193b70333825d114624242764afa0c23c392b322293c2f4e59d6b20ad9cd63",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "flatpkg.alpha",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    },
+    {
+      "path": "flatpkg/beta.py",
+      "folder": "flatpkg",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:7a2247a4580754a4c428b96d07ec30fc67b8cafcba2f0b57b7093ff63a5195c4",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "flatpkg.beta",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    },
+    {
+      "path": "flatpkg/gamma.py",
+      "folder": "flatpkg",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:7a2247a4580754a4c428b96d07ec30fc67b8cafcba2f0b57b7093ff63a5195c4",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "flatpkg.gamma",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "flatpkg/alpha.py",
+      "target": "flatpkg/beta.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "flatpkg/beta.py",
+      "target": "flatpkg/alpha.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "flatpkg/gamma.py",
+      "target": "flatpkg/alpha.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 3,
+    "resolved": 3,
+    "symbols": 0,
+    "star_imports": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 0,
+    "python": {
+      "namespace_packages": 0
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 4,
+    "parsed": 4,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

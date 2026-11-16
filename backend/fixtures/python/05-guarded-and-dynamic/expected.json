@@ -1,0 +1,168 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language python; tree-sitter 0.26.0; tree-sitter-python 0.25.0)",
+  "python": {
+    "import_root": ".",
+    "import_root_rule": "repository root"
+  },
+  "files": [
+    {
+      "path": "annotations_only.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:8090820e288f4de73d011232aecfd1387938c643180e91a123e89466e0a9cb58",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "annotations_only",
+        "package_kind": null,
+        "is_package": false
+      }
+    },
+    {
+      "path": "dynamic_module.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:d732ea776c80bfb7bd33ae016cf3ada47ae1f4775fe63435ad744dd34e054a74",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "dynamic_module",
+        "package_kind": null,
+        "is_package": false
+      }
+    },
+    {
+      "path": "guarded.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 16,
+      "content_hash": "sha256:0e5287a7c118b972b309123dd74515cf93884496915a24a7dc779998963bed56",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "guarded",
+        "package_kind": null,
+        "is_package": false
+      }
+    },
+    {
+      "path": "safe_module.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:0b7f2af2cefe42be399646e5425f921a34d703504e0720f702f2747eace5ff40",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "safe_module",
+        "package_kind": null,
+        "is_package": false
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "guarded.py",
+      "target": "annotations_only.py",
+      "kind": "import",
+      "condition": "type_only",
+      "line": 10,
+      "column": 5
+    },
+    {
+      "source": "guarded.py",
+      "target": "dynamic_module.py",
+      "kind": "dynamic_import",
+      "condition": null,
+      "line": 12,
+      "column": 1
+    },
+    {
+      "source": "guarded.py",
+      "target": "safe_module.py",
+      "kind": "import",
+      "condition": "optional",
+      "line": 5,
+      "column": 5
+    }
+  ],
+  "symbol_references": [
+    {
+      "source": "guarded.py",
+      "module": "annotations_only",
+      "name": "Typed",
+      "status": "symbol of resolved module, not verified",
+      "line": 10,
+      "column": 5
+    }
+  ],
+  "star_import_references": [],
+  "unresolved_references": [
+    {
+      "source": "guarded.py",
+      "reference": "importlib.import_module(name)",
+      "reason": "non-literal dynamic import",
+      "line": 16,
+      "column": 12
+    }
+  ],
+  "external_references": [
+    {
+      "source": "guarded.py",
+      "reference": "importlib",
+      "top_level": "importlib",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "guarded.py",
+      "reference": "typing",
+      "top_level": "typing",
+      "line": 2,
+      "column": 1
+    }
+  ],
+  "excluded_references": [],
+  "coverage": {
+    "references": 7,
+    "resolved": 3,
+    "symbols": 1,
+    "star_imports": 0,
+    "external": 2,
+    "excluded": 0,
+    "failed": 1,
+    "python": {
+      "namespace_packages": 0
+    },
+    "failures_by_reason": {
+      "non-literal dynamic import": 1
+    },
+    "failure_examples": [
+      {
+        "source": "guarded.py",
+        "reference": "importlib.import_module(name)",
+        "reason": "non-literal dynamic import",
+        "line": 16,
+        "column": 12
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 4,
+    "parsed": 4,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

@@ -1,0 +1,192 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language python; tree-sitter 0.26.0; tree-sitter-python 0.25.0)",
+  "python": {
+    "import_root": ".",
+    "import_root_rule": "repository root"
+  },
+  "files": [
+    {
+      "path": "relpkg/__init__.py",
+      "folder": "relpkg",
+      "language": "python",
+      "line_count": 0,
+      "content_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "relpkg",
+        "package_kind": "regular",
+        "is_package": true
+      }
+    },
+    {
+      "path": "relpkg/app.py",
+      "folder": "relpkg",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:ba10346b3f1a6a5643c7159d9ec77f29f8ec2d618ff93eddb55e881036264708",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "relpkg.app",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    },
+    {
+      "path": "relpkg/beyond.py",
+      "folder": "relpkg",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:da75857e81ca2adda2c6738e4154078c934a188895c333faef26627d5c9756b5",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "relpkg.beyond",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    },
+    {
+      "path": "relpkg/helper.py",
+      "folder": "relpkg",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "relpkg.helper",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    },
+    {
+      "path": "relpkg/sub/__init__.py",
+      "folder": "relpkg/sub",
+      "language": "python",
+      "line_count": 0,
+      "content_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "relpkg.sub",
+        "package_kind": "regular",
+        "is_package": true
+      }
+    },
+    {
+      "path": "relpkg/sub/deep.py",
+      "folder": "relpkg/sub",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:2daca73d9501d720edef77e588edc5d4f0a92a842aa37636cbcce72985211402",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "relpkg.sub.deep",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    },
+    {
+      "path": "relpkg/sub/other.py",
+      "folder": "relpkg/sub",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:a6af133c66ca4305f2792c3ce076d769258bacf47090345d3b5c8938263f17da",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "relpkg.sub.other",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "relpkg/app.py",
+      "target": "relpkg/helper.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "relpkg/sub/deep.py",
+      "target": "relpkg/helper.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "relpkg/sub/other.py",
+      "target": "relpkg/sub/deep.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "unresolved_references": [
+    {
+      "source": "relpkg/beyond.py",
+      "reference": "..",
+      "reason": "relative import climbs above the top-level package",
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 7,
+    "resolved": 6,
+    "symbols": 0,
+    "star_imports": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 1,
+    "python": {
+      "namespace_packages": 0
+    },
+    "failures_by_reason": {
+      "relative import climbs above the top-level package": 1
+    },
+    "failure_examples": [
+      {
+        "source": "relpkg/beyond.py",
+        "reference": "..",
+        "reason": "relative import climbs above the top-level package",
+        "line": 1,
+        "column": 1
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 7,
+    "parsed": 7,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}
