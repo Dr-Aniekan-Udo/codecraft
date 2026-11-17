@@ -17,7 +17,7 @@ section; Python uses `python` at the repository, file and coverage levels.
 | `parser_version` | string | Parser, binding and grammar versions that produced the output. |
 | `python` | Python repository details or null | Import root and the rule that chose it. |
 | `files` | array of file record | Every regular file and symbolic-link record outside a pruned directory, sorted by `path`. |
-| `excluded_directories` | array of `{path, reason}` | Pruned directories, sorted by `path`, with a trailing `/`. |
+| `excluded_directories` | array of `{path, reason}` | Pruned directories, sorted by `path`, with a trailing `/`. An unlistable repository root is `.`. |
 | `edges` | array of edge | Unique connections, sorted. |
 | `symbol_references` | array of symbol record | Imported names that are not modules, recorded per name, sorted. |
 | `star_import_references` | array of star import record | Star imports whose names the parser does not enumerate, sorted. |
@@ -32,8 +32,16 @@ section; Python uses `python` at the repository, file and coverage levels.
 - The walk reads at most **50,000 files**. A repository with more fails the run with
   `repository exceeds the 50000 file limit`.
 - A file larger than **2,000,000 bytes** is excluded with reason `file exceeds size
-  limit` and is never read. Its hash and line count are null.
+  limit`. It is read no further than size-limit + 1 bytes, is never parsed in part, and its
+  hash and line count stay null.
 - The numbers are named constants in `codecraft_parsing.common.walker`.
+
+Every `line` and `column` is a one-based integer of at least 1. Every count (`line_count`,
+`namespace_packages`, each coverage count and each value in `failures_by_reason` and
+`excluded_by_reason`) is an integer of at least 0. A `content_hash` is exactly `sha256:`
+followed by 64 lowercase hex characters. These bounds are the `Position`, `Count` and
+`ContentHash` aliases in `codecraft_core.model`; the model and `parser-output.schema.json`
+state the same bounds.
 
 ## File record
 
@@ -42,14 +50,21 @@ the root. `language` is `python` or null. `line_count` is `len(text.splitlines()
 `.py` file that decodes. A `.pyi` stub, every other file, and a `.py` that does not decode
 count the raw bytes split into lines.
 
-`content_hash` is `sha256:<hex>`: lowercase hex of the raw bytes. It is null only for a
-file that was deliberately not opened (an environment file, a symbolic link, or a file
-over the size limit), which also has a null `line_count`.
+`content_hash` is `sha256:<hex>`: lowercase hex of the raw bytes. It is null for an
+environment file, a symbolic link, a file over the size limit and a file that cannot be
+read, none of which keeps a hash; those files also have a null `line_count`.
 
 `is_node` is true when the file is part of the graph. `excluded_reason` is null for a node
 and a named reason for an excluded file. `parse_failure` is null or
 `{reason, line, column}`; a node with a parse failure keeps its place but contributes no
-edges. `adapter_role` is `fallback` for every file, node or excluded.
+edges. A file whose decoded text cannot be encoded as UTF-8 is a parse failure with reason
+`cannot encode source as UTF-8`. A parse failure with no position, which is a decode or
+encode failure, has null `line` and `column`. `adapter_role` is `fallback` for every file,
+node or excluded.
+
+A directory that cannot be listed is recorded in `excluded_directories` with reason
+`directory cannot be listed`; its contents are never read. A file that cannot be read is
+an excluded file with reason `file cannot be read`, with a null hash and null line count.
 
 `python` is the Python details object, or null:
 
@@ -130,7 +145,9 @@ No names are invented in any case.
 ## Reference records
 
 `reference` is the module expression as written, or the call text for a dynamic import
-that is not a literal. `line` and `column` are one-based at the statement or call start.
+that is not a literal. For a non-literal dynamic import the call text is at most 120
+characters; when longer it is truncated to 120 characters followed by `...`, with `line`
+and `column` unchanged. `line` and `column` are one-based at the statement or call start.
 `column` counts characters, not UTF-8 bytes. `reason` is a named, stable string. External
 records add `top_level`, the first dot segment; external is a recorded outcome, not a
 failure, so it carries no reason. An excluded reference is one that lands in a pruned

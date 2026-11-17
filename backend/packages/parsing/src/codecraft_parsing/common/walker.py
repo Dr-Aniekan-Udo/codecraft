@@ -16,6 +16,8 @@ from codecraft_core.model import ExcludedDirectory, Language
 
 MAX_FILE_COUNT = 50_000
 MAX_FILE_BYTES = 2_000_000
+UNREADABLE_DIRECTORY_REASON = "directory cannot be listed"
+UNREADABLE_FILE_REASON = "file cannot be read"
 
 _DIRECTORY_REASONS: dict[str, str] = {
     ".git": "version control metadata",
@@ -77,13 +79,43 @@ class WalkResult:
     excluded_directories: list[ExcludedDirectory]
 
 
+def read_within_limit(path: Path, limit: int) -> bytes | None:
+    """Read at most ``limit`` bytes, or None when the file is longer.
+
+    The extra byte is what proves the file is over the limit; the caller never
+    sees a partial file, because a partial file is not evidence.
+    """
+    with path.open("rb") as stream:
+        data = stream.read(limit + 1)
+    return data if len(data) <= limit else None
+
+
 def walk_repository(root: Path, classify: Callable[[str], FileClassification]) -> WalkResult:
     """Walk ``root`` in path order, applying the shared exclusions and limits."""
     file_paths: list[str] = []
     directories: list[str] = []
     excluded_directories: list[ExcludedDirectory] = []
 
-    for current, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
+    def _unreadable(error: OSError) -> None:
+        # os.walk reports a directory it could not list through onerror. It was
+        # already counted as kept when its parent was read; remove it so the
+        # index does not treat a folder it never saw as a package.
+        filename = error.filename
+        if filename is None:
+            return
+        relative = _relative(Path(os.fsdecode(filename)), root)
+        excluded_directories.append(
+            ExcludedDirectory(
+                path=f"{relative}/" if relative else ".",
+                reason=UNREADABLE_DIRECTORY_REASON,
+            )
+        )
+        if relative in directories:
+            directories.remove(relative)
+
+    for current, dirnames, filenames in os.walk(
+        root, topdown=True, onerror=_unreadable, followlinks=False
+    ):
         current_path = Path(current)
         folder = _relative(current_path, root)
         kept: list[str] = []
@@ -137,10 +169,17 @@ def _walked_file(
         return _excluded(path, folder, language=classification.language, reason=_SYMBOLIC_LINK)
 
     classification = classify(name)
-    if candidate.stat().st_size > MAX_FILE_BYTES:
+    try:
+        data = read_within_limit(candidate, MAX_FILE_BYTES)
+    except OSError:
+        # An unreadable file is recorded, not fatal: the run must never omit a
+        # file silently just because the operating system refused to open it.
+        return _excluded(
+            path, folder, language=classification.language, reason=UNREADABLE_FILE_REASON
+        )
+    if data is None:
         return _excluded(path, folder, language=classification.language, reason=_FILE_TOO_LARGE)
 
-    data = candidate.read_bytes()
     content_hash = f"sha256:{hashlib.sha256(data).hexdigest()}"
     if classification.is_node:
         return WalkedFile(

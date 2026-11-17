@@ -42,6 +42,14 @@ def test_a_src_folder_with_only_an_environment_is_not_a_src_layout(tmp_path: Pat
     assert _details(result).import_root_rule == "repository root"
 
 
+def test_a_src_folder_that_is_an_environment_is_not_a_src_layout(tmp_path: Path) -> None:
+    _write(tmp_path / "src" / "pyvenv.cfg", "home = /usr/bin\n")
+    _write(tmp_path / "src" / "pkg" / "__init__.py", "")
+    result = parse_repository(tmp_path)
+    assert _details(result).import_root == "."
+    assert _details(result).import_root_rule == "repository root"
+
+
 def test_an_oversized_python_file_does_not_choose_src_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -183,3 +191,52 @@ def test_a_windows_style_configured_path_is_normalised(tmp_path: Path) -> None:
     result = parse_repository(tmp_path)
     assert _details(result).import_root == "lib/src"
     assert _details(result).import_root_rule == "setup.cfg package_dir"
+
+
+def test_a_configured_path_through_a_symlink_outside_the_root_falls_back(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "outside"
+    _write(outside / "pkg" / "__init__.py", "")
+    try:
+        (repo / "lib").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symbolic links are not available")
+    _write(repo / "pyproject.toml", '[tool.setuptools]\npackage-dir = {"" = "lib"}\n')
+
+    result = parse_repository(repo)
+
+    assert _details(result).import_root == "."
+    assert _details(result).import_root_rule == "repository root"
+
+
+def test_a_configured_path_through_an_internal_symlink_falls_back(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _write(repo / "real" / "pkg" / "__init__.py", "")
+    try:
+        (repo / "lib").symlink_to(repo / "real", target_is_directory=True)
+    except OSError:
+        pytest.skip("symbolic links are not available")
+    _write(repo / "pyproject.toml", '[tool.setuptools]\npackage-dir = {"" = "lib"}\n')
+
+    result = parse_repository(repo)
+
+    assert _details(result).import_root == "."
+    assert _details(result).import_root_rule == "repository root"
+
+
+def test_a_configured_excluded_directory_is_not_an_import_root(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "pyproject.toml",
+        '[tool.setuptools]\npackage-dir = {"" = "node_modules"}\n',
+    )
+    _write(tmp_path / "node_modules" / "pkg" / "__init__.py", "")
+    _write(tmp_path / "app.py", "VALUE = 1\n")
+
+    result = parse_repository(tmp_path)
+
+    assert _details(result).import_root == "."
+    assert _details(result).import_root_rule == "repository root"
+    assert ("node_modules/", "dependency installation") in [
+        (entry.path, entry.reason) for entry in result.excluded_directories
+    ]

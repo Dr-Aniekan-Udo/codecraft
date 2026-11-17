@@ -16,6 +16,12 @@ from tree_sitter import Node, Tree
 _TYPE_CHECKING_GUARDS = frozenset({"TYPE_CHECKING", "typing.TYPE_CHECKING"})
 _LITERAL_STRING_TYPES = frozenset({"string", "concatenated_string"})
 
+# Call text is the evidence for a dynamic import without a literal name. It is
+# bounded so one very long call cannot carry an unbounded amount of source text
+# into the output. Only the call-text references are bounded; a literal module
+# name is stored as written.
+MAX_REFERENCE_TEXT = 120
+
 
 @dataclass(frozen=True)
 class SourceText:
@@ -164,7 +170,7 @@ def _dynamic_import(node: Node, source: SourceText) -> RawImport | None:
         return None
     line, column = source.position(node)
     condition = _condition(node)
-    call_source = _node_text(node)
+    call_source = _bounded_reference(_node_text(node))
     value = _literal_string(_module_argument(node))
     if value is None:
         return RawImport(
@@ -440,19 +446,33 @@ def _imported_name_node(child: Node) -> Node | None:
 
 def _condition(node: Node) -> ImportCondition | None:
     current = node.parent
+    descendant = node
     while current is not None:
-        if current.type == "if_statement":
-            condition = current.child_by_field_name("condition")
-            # The guard is compared as written: a broader expression may or may
-            # not guard on typing, and guessing would mislabel the edge.
-            if condition is not None and _node_text(condition) in _TYPE_CHECKING_GUARDS:
-                return ImportCondition.TYPE_ONLY
+        if current.type in {"if_statement", "elif_clause"}:
+            consequence = current.child_by_field_name("consequence")
+            # A condition guards only the branch whose text follows it. An
+            # import under an elif or else is reached through a clause child,
+            # not through the if's consequence, so the outer if does not guard
+            # it; the elif's own condition still guards its own branch.
+            if descendant == consequence:
+                condition = current.child_by_field_name("condition")
+                # The guard is compared as written: a broader expression may or
+                # may not guard on typing, and guessing would mislabel the edge.
+                if condition is not None and _node_text(condition) in _TYPE_CHECKING_GUARDS:
+                    return ImportCondition.TYPE_ONLY
         elif current.type == "try_statement":
             return ImportCondition.OPTIONAL
         elif current.type in {"function_definition", "async_function_definition"}:
             return ImportCondition.LAZY
+        descendant = current
         current = current.parent
     return None
+
+
+def _bounded_reference(text: str) -> str:
+    if len(text) <= MAX_REFERENCE_TEXT:
+        return text
+    return f"{text[:MAX_REFERENCE_TEXT]}..."
 
 
 def _node_text(node: Node) -> str:

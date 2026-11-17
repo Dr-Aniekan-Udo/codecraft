@@ -1,10 +1,18 @@
 """File selection: nodes, excluded files and excluded directories."""
 
+import os
+from collections.abc import Iterator
 from pathlib import Path
+from typing import BinaryIO, cast
 
 import pytest
 from codecraft_core import AdapterRole, FileRecord, Language, PackageKind, PythonFileDetails
 from codecraft_parsing import parse_repository
+from codecraft_parsing.cli import main
+from codecraft_parsing.common.walker import (
+    UNREADABLE_DIRECTORY_REASON,
+    UNREADABLE_FILE_REASON,
+)
 
 
 def _write(path: Path, text: str) -> None:
@@ -131,3 +139,72 @@ def test_a_committed_virtual_environment_is_excluded_as_third_party(tmp_path: Pa
         ("requests", "requests")
     ]
     assert result.coverage.external == 1
+
+
+def test_an_unreadable_directory_is_excluded_and_the_scan_is_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A permission-denied directory is simulated for one directory.
+
+    Windows usually needs elevation to create a directory that cannot be
+    listed, so the test raises PermissionError from os.scandir for that one
+    path. os.walk reaches the same handler with exactly that OSError.
+    """
+    _write(tmp_path / "app.py", "VALUE = 1\n")
+    _write(tmp_path / "locked" / "hidden.py", "VALUE = 2\n")
+
+    real_scandir = os.scandir
+
+    def _scandir(path: str) -> Iterator[os.DirEntry[str]]:
+        if path.endswith("locked"):
+            raise PermissionError(13, "Permission denied", path)
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", _scandir)
+
+    result = parse_repository(tmp_path)
+    by_path = {record.path: record for record in result.files}
+
+    assert ("locked/", UNREADABLE_DIRECTORY_REASON) in [
+        (entry.path, entry.reason) for entry in result.excluded_directories
+    ]
+    assert by_path["app.py"].is_node
+    assert not any(path.startswith("locked/") for path in by_path)
+
+    assert main([str(tmp_path)]) == 0
+    assert "scan: incomplete (1 directory could not be listed)" in capsys.readouterr().out
+
+
+def test_an_unreadable_file_is_excluded_and_the_scan_is_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A file that cannot be opened is simulated by raising where it is read.
+
+    Windows usually needs elevation or a lock to make a real file unreadable,
+    so this monkeypatch raises PermissionError for exactly one path. It is the
+    deterministic substitute for the operating system refusing the open.
+    """
+    _write(tmp_path / "app.py", "VALUE = 1\n")
+    _write(tmp_path / "locked.py", "VALUE = 2\n")
+
+    real_open = Path.open
+
+    def _open(path: Path, *_args: object, **_kwargs: object) -> BinaryIO:
+        if path.name == "locked.py":
+            raise PermissionError(13, "Permission denied", str(path))
+        return cast("BinaryIO", real_open(path, "rb"))
+
+    monkeypatch.setattr(Path, "open", _open)
+
+    result = parse_repository(tmp_path)
+    by_path = {record.path: record for record in result.files}
+
+    locked = by_path["locked.py"]
+    assert not locked.is_node
+    assert locked.excluded_reason == UNREADABLE_FILE_REASON
+    assert locked.content_hash is None
+    assert locked.line_count is None
+    assert by_path["app.py"].is_node
+
+    assert main([str(tmp_path)]) == 0
+    assert "scan: incomplete (1 file could not be read)" in capsys.readouterr().out

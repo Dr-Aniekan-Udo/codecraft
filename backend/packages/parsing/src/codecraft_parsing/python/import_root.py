@@ -18,6 +18,7 @@ from codecraft_parsing.common.walker import (
     MAX_FILE_BYTES,
     MAX_FILE_COUNT,
     directory_exclusion_reason,
+    read_within_limit,
 )
 
 
@@ -30,7 +31,7 @@ def detect_import_root(root: Path) -> tuple[str, str]:
         normalised = _existing_relative_directory(root, candidate)
         if normalised is not None:
             return normalised, rule
-    if _has_python_file(root / "src"):
+    if directory_exclusion_reason("src", root / "src") is None and _has_python_file(root / "src"):
         return "src", "src layout"
     return ".", "repository root"
 
@@ -50,8 +51,27 @@ def _existing_relative_directory(root: Path, candidate: str) -> str | None:
     parts = PurePosixPath(candidate).parts
     if ".." in parts or ".." in Path(candidate).parts:
         return None
-    if not root.joinpath(*parts).is_dir():
+    directory = root.joinpath(*parts)
+    if not directory.is_dir():
         return None
+    resolved_root = root.resolve()
+    try:
+        resolved = directory.resolve()
+    except OSError:
+        return None
+    # A configuration path must not escape the repository, and a symlink
+    # component is not accepted even when it points back inside: the walk
+    # excludes symlinks, so an import root through one would name a namespace
+    # the analysis never reads.
+    if not resolved.is_relative_to(resolved_root):
+        return None
+    current = root
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            return None
+        if directory_exclusion_reason(part, current) is not None:
+            return None
     normalised = PurePosixPath(candidate).as_posix()
     return normalised if normalised else "."
 
@@ -59,9 +79,12 @@ def _existing_relative_directory(root: Path, candidate: str) -> str | None:
 def _read_config_text(path: Path) -> str | None:
     """Read a configuration file only when it is safe to treat as data."""
     try:
-        if path.is_symlink() or path.stat().st_size > MAX_FILE_BYTES:
+        if path.is_symlink():
             return None
-        return path.read_text(encoding="utf-8")
+        data = read_within_limit(path, MAX_FILE_BYTES)
+        if data is None:
+            return None
+        return data.decode("utf-8")
     except OSError, UnicodeDecodeError:
         return None
 
@@ -137,7 +160,18 @@ def _has_python_file(directory: Path) -> bool:
     if directory.is_symlink() or not directory.is_dir():
         return False
     seen = 0
-    for current, dirnames, filenames in os.walk(directory, topdown=True, followlinks=False):
+    found = False
+    incomplete = False
+
+    def _unreadable(_error: OSError) -> None:
+        nonlocal incomplete
+        # A listing that failed leaves a gap; a Python file elsewhere is only
+        # partial evidence, so this traversal must not choose the src layout.
+        incomplete = True
+
+    for current, dirnames, filenames in os.walk(
+        directory, topdown=True, onerror=_unreadable, followlinks=False
+    ):
         current_path = Path(current)
         kept: list[str] = []
         for name in sorted(dirnames):
@@ -160,8 +194,8 @@ def _has_python_file(directory: Path) -> bool:
                     continue
             except OSError:
                 continue
-            return True
-    return False
+            found = True
+    return found and not incomplete
 
 
 def _table(value: object, key: str | None = None) -> Mapping[str, object] | None:

@@ -5,7 +5,7 @@ JSON Schema document and the test must validate real output against it.
 """
 
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -21,6 +21,7 @@ from codecraft_core import (
     ImportCondition,
     Language,
     PackageKind,
+    ParseFailure,
     PythonCoverageDetails,
     PythonFileDetails,
     PythonRepositoryDetails,
@@ -33,6 +34,7 @@ from codecraft_core import (
 )
 from codecraft_parsing import parse_repository
 from jsonschema import Draft202012Validator  # pyright: ignore[reportMissingTypeStubs]
+from pydantic import BaseModel, ValidationError
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 _SCHEMA_PATH = _REPOSITORY_ROOT / "docs" / "contracts" / "parser-output.schema.json"
@@ -61,6 +63,16 @@ def _schema_errors(value: object, schema: JsonSchema) -> list[str]:
     # this protocol names the part of its API the contract test actually uses.
     validator = cast("_Validator", Draft202012Validator(schema))
     return [error.message for error in validator.iter_errors(value)]
+
+
+def _schema_for(definition: str) -> JsonSchema:
+    # A definition validated alone cannot follow its local $refs, so the root
+    # schema's definitions travel with the reference to the one under test.
+    definitions = _load_schema()["$defs"]
+    return cast(
+        "JsonSchema",
+        {"$ref": f"#/$defs/{definition}", "$defs": definitions},
+    )
 
 
 @pytest.mark.parametrize("name", _FIXTURE_NAMES)
@@ -192,3 +204,210 @@ def test_the_validator_rejects_broken_documents() -> None:
     files[0] = first
     with_fan["files"] = files
     assert _schema_errors(with_fan, schema) != []
+
+
+type PositionedFactory = Callable[[int, int], BaseModel]
+
+_POSITIONED_RECORDS: tuple[tuple[str, PositionedFactory], ...] = (
+    (
+        "edge",
+        lambda line, column: Edge(
+            source="a.py",
+            target="b.py",
+            kind=EdgeKind.IMPORT,
+            condition=None,
+            line=line,
+            column=column,
+        ),
+    ),
+    (
+        "symbol_record",
+        lambda line, column: SymbolRecord(
+            source="a.py",
+            module="m",
+            name="n",
+            status=SymbolStatus.UNVERIFIED,
+            line=line,
+            column=column,
+        ),
+    ),
+    (
+        "star_import_record",
+        lambda line, column: StarImportRecord(
+            source="a.py",
+            module="m",
+            status=StarImportStatus.NAMES_NOT_ENUMERATED,
+            line=line,
+            column=column,
+        ),
+    ),
+    (
+        "reference_record",
+        lambda line, column: ReferenceRecord(
+            source="a.py",
+            reference="m",
+            reason="r",
+            line=line,
+            column=column,
+        ),
+    ),
+    (
+        "external_reference",
+        lambda line, column: ExternalReference(
+            source="a.py",
+            reference="m",
+            top_level="m",
+            line=line,
+            column=column,
+        ),
+    ),
+    (
+        "parse_failure",
+        lambda line, column: ParseFailure(reason="r", line=line, column=column),
+    ),
+)
+
+
+@pytest.mark.parametrize(("definition", "factory"), _POSITIONED_RECORDS)
+def test_a_zero_position_is_rejected_by_the_model(
+    definition: str, factory: PositionedFactory
+) -> None:
+    assert factory(1, 1) is not None
+    with pytest.raises(ValidationError):
+        factory(0, 1)
+    with pytest.raises(ValidationError):
+        factory(1, 0)
+
+
+@pytest.mark.parametrize(("definition", "factory"), _POSITIONED_RECORDS)
+def test_a_zero_position_is_rejected_by_the_schema(
+    definition: str, factory: PositionedFactory
+) -> None:
+    schema = _schema_for(definition)
+    record = cast("dict[str, object]", factory(1, 1).model_dump(mode="json"))
+    assert _schema_errors(record, schema) == []
+    for field in ("line", "column"):
+        broken = dict(record)
+        broken[field] = 0
+        assert _schema_errors(broken, schema) != []
+
+
+_COVERAGE_COUNTS = (
+    "references",
+    "resolved",
+    "symbols",
+    "star_imports",
+    "external",
+    "excluded",
+    "failed",
+)
+_FILE_COVERAGE_COUNTS = ("found", "parsed", "failed_parse", "excluded")
+
+
+def _coverage_document() -> dict[str, object]:
+    values: dict[str, object] = {name: 0 for name in _COVERAGE_COUNTS}
+    values["python"] = None
+    values["failures_by_reason"] = {}
+    values["failure_examples"] = []
+    return values
+
+
+def _file_coverage_document() -> dict[str, object]:
+    values: dict[str, object] = {name: 0 for name in _FILE_COVERAGE_COUNTS}
+    values["excluded_by_reason"] = {}
+    return values
+
+
+@pytest.mark.parametrize("field", _COVERAGE_COUNTS)
+def test_a_negative_coverage_count_is_rejected_by_the_model(field: str) -> None:
+    values = _coverage_document()
+    values[field] = -1
+    with pytest.raises(ValidationError) as invalid:
+        Coverage.model_validate(values)
+    assert any(item["type"] == "greater_than_equal" for item in invalid.value.errors())
+
+
+@pytest.mark.parametrize("field", _COVERAGE_COUNTS)
+def test_a_negative_coverage_count_is_rejected_by_the_schema(field: str) -> None:
+    schema = _schema_for("coverage")
+    values = _coverage_document()
+    assert _schema_errors(values, schema) == []
+    values[field] = -1
+    assert _schema_errors(values, schema) != []
+
+
+@pytest.mark.parametrize("field", _FILE_COVERAGE_COUNTS)
+def test_a_negative_file_coverage_count_is_rejected_by_the_model(field: str) -> None:
+    values = _file_coverage_document()
+    values[field] = -1
+    with pytest.raises(ValidationError) as invalid:
+        FileCoverage.model_validate(values)
+    assert any(item["type"] == "greater_than_equal" for item in invalid.value.errors())
+
+
+@pytest.mark.parametrize("field", _FILE_COVERAGE_COUNTS)
+def test_a_negative_file_coverage_count_is_rejected_by_the_schema(field: str) -> None:
+    schema = _schema_for("file_coverage")
+    values = _file_coverage_document()
+    assert _schema_errors(values, schema) == []
+    values[field] = -1
+    assert _schema_errors(values, schema) != []
+
+
+_VALID_HASH = "sha256:" + "0" * 64
+
+
+def _file_record(line_count: int = 1, content_hash: str | None = _VALID_HASH) -> FileRecord:
+    return FileRecord(
+        path="a.py",
+        folder=".",
+        language=Language.PYTHON,
+        line_count=line_count,
+        content_hash=content_hash,
+        is_node=True,
+        excluded_reason=None,
+        parse_failure=None,
+        adapter_role=AdapterRole.FALLBACK,
+        python=PythonFileDetails(module="a", package_kind=None, is_package=False),
+    )
+
+
+def test_a_negative_line_count_is_rejected_by_the_model_and_the_schema() -> None:
+    with pytest.raises(ValidationError) as invalid:
+        _file_record(line_count=-1)
+    assert any(item["type"] == "greater_than_equal" for item in invalid.value.errors())
+
+    schema = _schema_for("file_record")
+    document = cast("dict[str, object]", _file_record().model_dump(mode="json"))
+    assert _schema_errors(document, schema) == []
+    document["line_count"] = -1
+    assert _schema_errors(document, schema) != []
+
+
+def test_a_negative_namespace_package_count_is_rejected_by_the_model_and_the_schema() -> None:
+    with pytest.raises(ValidationError) as invalid:
+        PythonCoverageDetails(namespace_packages=-1)
+    assert any(item["type"] == "greater_than_equal" for item in invalid.value.errors())
+
+    schema = _schema_for("python_coverage_details")
+    document = cast(
+        "dict[str, object]",
+        PythonCoverageDetails(namespace_packages=0).model_dump(mode="json"),
+    )
+    assert _schema_errors(document, schema) == []
+    document["namespace_packages"] = -1
+    assert _schema_errors(document, schema) != []
+
+
+def test_a_malformed_content_hash_is_rejected_by_the_model_and_the_schema() -> None:
+    with pytest.raises(ValidationError) as invalid:
+        _file_record(content_hash="sha256:not-a-hash")
+    assert any(item["type"] == "string_pattern_mismatch" for item in invalid.value.errors())
+
+    schema = _schema_for("file_record")
+    document = cast("dict[str, object]", _file_record().model_dump(mode="json"))
+    assert _schema_errors(document, schema) == []
+    document["content_hash"] = "sha256:not-a-hash"
+    assert _schema_errors(document, schema) != []
+    document["content_hash"] = _VALID_HASH
+    assert _schema_errors(document, schema) == []

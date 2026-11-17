@@ -8,9 +8,16 @@ section, so adding Go or TypeScript does not add fields to every file record.
 """
 
 from enum import StrEnum
-from typing import Self
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+# Bounds the schema states as minimum 1, minimum 0 and a SHA-256 pattern. They
+# live here as aliases so no record can carry a position or count that the
+# contract document would call impossible.
+type Position = Annotated[int, Field(ge=1)]
+type Count = Annotated[int, Field(ge=0)]
+type ContentHash = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 
 
 class Language(StrEnum):
@@ -75,8 +82,8 @@ class ParseFailure(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     reason: str
-    line: int | None
-    column: int | None
+    line: Position | None
+    column: Position | None
 
 
 class PythonFileDetails(BaseModel):
@@ -100,8 +107,8 @@ class FileRecord(BaseModel):
     path: str
     folder: str
     language: Language | None
-    line_count: int | None
-    content_hash: str | None
+    line_count: Count | None
+    content_hash: ContentHash | None
     is_node: bool
     excluded_reason: str | None
     parse_failure: ParseFailure | None
@@ -140,8 +147,8 @@ class Edge(BaseModel):
     target: str
     kind: EdgeKind
     condition: ImportCondition | None
-    line: int
-    column: int
+    line: Position
+    column: Position
 
 
 class SymbolRecord(BaseModel):
@@ -157,8 +164,8 @@ class SymbolRecord(BaseModel):
     module: str
     name: str
     status: SymbolStatus
-    line: int
-    column: int
+    line: Position
+    column: Position
 
 
 class StarImportRecord(BaseModel):
@@ -173,8 +180,8 @@ class StarImportRecord(BaseModel):
     source: str
     module: str
     status: StarImportStatus
-    line: int
-    column: int
+    line: Position
+    column: Position
 
 
 class ReferenceRecord(BaseModel):
@@ -185,8 +192,8 @@ class ReferenceRecord(BaseModel):
     source: str
     reference: str
     reason: str
-    line: int
-    column: int
+    line: Position
+    column: Position
 
 
 class ExternalReference(BaseModel):
@@ -200,8 +207,8 @@ class ExternalReference(BaseModel):
     source: str
     reference: str
     top_level: str
-    line: int
-    column: int
+    line: Position
+    column: Position
 
 
 class PythonCoverageDetails(BaseModel):
@@ -209,7 +216,7 @@ class PythonCoverageDetails(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    namespace_packages: int
+    namespace_packages: Count
 
 
 class Coverage(BaseModel):
@@ -223,15 +230,15 @@ class Coverage(BaseModel):
     Failures keep examples as well as a count.
     """
 
-    references: int
-    resolved: int
-    symbols: int
-    star_imports: int
-    external: int
-    excluded: int
-    failed: int
+    references: Count
+    resolved: Count
+    symbols: Count
+    star_imports: Count
+    external: Count
+    excluded: Count
+    failed: Count
     python: PythonCoverageDetails | None
-    failures_by_reason: dict[str, int]
+    failures_by_reason: dict[str, Count]
     failure_examples: list[ReferenceRecord]
 
     @model_validator(mode="after")
@@ -250,11 +257,11 @@ class Coverage(BaseModel):
 
 
 class FileCoverage(BaseModel):
-    found: int
-    parsed: int
-    failed_parse: int
-    excluded: int
-    excluded_by_reason: dict[str, int]
+    found: Count
+    parsed: Count
+    failed_parse: Count
+    excluded: Count
+    excluded_by_reason: dict[str, Count]
 
     @model_validator(mode="after")
     def _files_add_up(self) -> Self:

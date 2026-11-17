@@ -1,5 +1,7 @@
 """The two bounded-parsing limits."""
 
+import io
+from collections.abc import Callable
 from pathlib import Path
 
 import codecraft_parsing.common.walker as walker
@@ -28,7 +30,45 @@ def test_file_count_limit_fails_the_run(tmp_path: Path, monkeypatch: pytest.Monk
         parse_repository(tmp_path)
 
 
-def test_file_size_limit_excludes_the_file_without_reading_it(
+class _RecordingStream(io.BytesIO):
+    """A fake binary file that reports the size each read asked for."""
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.requested: list[int] = []
+
+    def read(self, size: int | None = -1) -> bytes:
+        self.requested.append(-1 if size is None else size)
+        return super().read(size)
+
+
+def _open_stream(stream: io.BytesIO) -> Callable[..., io.BytesIO]:
+    def _open(*_args: object, **_kwargs: object) -> io.BytesIO:
+        return stream
+
+    return _open
+
+
+def test_the_capped_read_asks_for_at_most_the_limit_plus_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A handle that is longer than the size check saw proves the read itself is
+    # capped: the helper never asks for the whole file.
+    path = tmp_path / "growing.bin"
+    path.write_bytes(b"")
+
+    accepted = _RecordingStream(b"x" * 10)
+    monkeypatch.setattr(Path, "open", _open_stream(accepted))
+    assert walker.read_within_limit(path, 10) == b"x" * 10
+    assert accepted.requested == [11]
+
+    rejected = _RecordingStream(b"x" * 11)
+    monkeypatch.setattr(Path, "open", _open_stream(rejected))
+    assert walker.read_within_limit(path, 10) is None
+    assert rejected.requested == [11]
+
+
+def test_file_size_limit_excludes_the_file_through_the_capped_read(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(walker, "MAX_FILE_BYTES", 10)

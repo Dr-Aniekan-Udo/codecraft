@@ -10,7 +10,11 @@ from pathlib import Path
 from codecraft_core.model import ExcludedDirectory, RepositoryParse
 
 from codecraft_parsing import SUPPORTED_LANGUAGES, parse_repository
-from codecraft_parsing.common.walker import RepositoryLimitError
+from codecraft_parsing.common.walker import (
+    UNREADABLE_DIRECTORY_REASON,
+    UNREADABLE_FILE_REASON,
+    RepositoryLimitError,
+)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -72,6 +76,23 @@ def _summary(model: RepositoryParse, root: Path) -> list[str]:
         f"  {reason}: {count}"
         for reason, count in _counts_by_reason(model.excluded_directories).items()
     )
+    unreadable_directories = sum(
+        1 for entry in model.excluded_directories if entry.reason == UNREADABLE_DIRECTORY_REASON
+    )
+    unreadable_files = sum(
+        1 for entry in model.files if entry.excluded_reason == UNREADABLE_FILE_REASON
+    )
+    incomplete: list[str] = []
+    if unreadable_directories:
+        noun = "directory" if unreadable_directories == 1 else "directories"
+        incomplete.append(f"{unreadable_directories} {noun} could not be listed")
+    if unreadable_files:
+        noun = "file" if unreadable_files == 1 else "files"
+        incomplete.append(f"{unreadable_files} {noun} could not be read")
+    if incomplete:
+        lines.append(f"scan: incomplete ({', '.join(incomplete)})")
+    else:
+        lines.append("scan: complete")
     lines.extend(
         [
             f"edges: {len(model.edges)}",

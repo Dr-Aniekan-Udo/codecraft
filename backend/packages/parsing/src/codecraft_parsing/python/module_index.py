@@ -63,6 +63,11 @@ class ModuleIndex:
             prefix = f"{prefix}.{part}" if prefix else part
             if prefix not in self.package_dirs:
                 return MissingParent()
+            if prefix in self.module_files and prefix not in self.regular_packages:
+                # A loose module of that name shadows a namespace folder of the
+                # same name. A regular package (one with an __init__ file) still
+                # wins and continues as before.
+                return MissingParent()
         name = ".".join(parts)
         path = self.module_files.get(name)
         if path is not None:

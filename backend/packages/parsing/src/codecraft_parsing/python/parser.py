@@ -70,7 +70,7 @@ def parse_python_repository(root: Path) -> RepositoryParse:
     records: dict[str, FileRecord] = {record.path: record for record in files}
 
     parser = Parser(TreeLanguage(tree_sitter_python.language()))
-    outcome = _Outcome()
+    outcome = _Outcome(chains={record.path: _package_chain(record) for record in files})
     parse_failures: dict[str, ParseFailure] = {}
 
     for record in files:
@@ -79,8 +79,17 @@ def parse_python_repository(root: Path) -> RepositoryParse:
             # Not a node, or a node whose source could not be decoded. The second
             # case already carries its parse failure from the file builder.
             continue
+        try:
+            encoded = text.encode("utf-8")
+        except UnicodeEncodeError:
+            # The decoder accepted the file's declared encoding but the result
+            # is not representable in UTF-8, so the grammar cannot read it.
+            parse_failures[record.path] = ParseFailure(
+                reason="cannot encode source as UTF-8", line=None, column=None
+            )
+            continue
         source = SourceText.from_text(text)
-        tree = parser.parse(text.encode("utf-8"))
+        tree = parser.parse(encoded)
         failure = _first_syntax_problem(tree.root_node, source)
         if failure is not None:
             # A file that does not parse contributes no edges, but keeps its node
@@ -135,6 +144,7 @@ class _Outcome:
     external: list[ExternalReference] = field(default_factory=list[ExternalReference])
     excluded: list[ReferenceRecord] = field(default_factory=list[ReferenceRecord])
     resolved: int = 0
+    chains: dict[str, frozenset[str]] = field(default_factory=dict[str, frozenset[str]])
 
 
 def _resolve(
@@ -348,7 +358,7 @@ def _resolved_file(
         # A star import's base moves its one reference to star_imports instead;
         # _record_star writes that record and its edge is still drawn below.
         outcome.resolved += 1
-    if _suppressed(match, raw, source, records):
+    if _suppressed(match, raw, source, records, outcome):
         return
     outcome.edges.append(
         Edge(
@@ -363,7 +373,11 @@ def _resolved_file(
 
 
 def _suppressed(
-    match: FileMatch, raw: RawImport, source: FileRecord, records: Mapping[str, FileRecord]
+    match: FileMatch,
+    raw: RawImport,
+    source: FileRecord,
+    records: Mapping[str, FileRecord],
+    outcome: _Outcome,
 ) -> bool:
     if not raw.is_relative:
         # An explicit import always draws its edge, even when it names the file's
@@ -374,7 +388,7 @@ def _suppressed(
     target_details = None if target is None else target.python
     if target_details is None or not target_details.is_package:
         return False
-    return match.module_name in _package_chain(source)
+    return match.module_name in outcome.chains.get(source.path, frozenset())
 
 
 def _python_details(source: FileRecord) -> PythonFileDetails | None:
@@ -386,14 +400,14 @@ def _package_parts(module: str, is_package: bool) -> tuple[str, ...]:
     return parts if is_package else parts[:-1]
 
 
-def _package_chain(source: FileRecord) -> set[str]:
+def _package_chain(source: FileRecord) -> frozenset[str]:
     details = source.python
     if details is None or details.module is None:
-        return set()
+        return frozenset()
     parts = details.module.split(".")
     if not details.is_package:
         parts = parts[:-1]
-    return {".".join(parts[: index + 1]) for index in range(len(parts))}
+    return frozenset(".".join(parts[: index + 1]) for index in range(len(parts)))
 
 
 def _fail(outcome: _Outcome, source: FileRecord, raw: RawImport, reason: str) -> None:

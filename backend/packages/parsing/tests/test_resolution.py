@@ -4,6 +4,7 @@ from pathlib import Path
 
 from codecraft_core import EdgeKind, ImportCondition, StarImportStatus
 from codecraft_parsing import parse_repository
+from codecraft_parsing.python.imports import MAX_REFERENCE_TEXT
 
 
 def _write(path: Path, text: str) -> None:
@@ -452,5 +453,125 @@ def test_a_dunder_import_with_unary_plus_or_level_two_is_relative(tmp_path: Path
     assert [(edge.source, edge.target, edge.kind) for edge in result.edges] == [
         ("pkg/app.py", "pkg/mod.py", EdgeKind.DYNAMIC_IMPORT),
         ("pkg/sub/app.py", "pkg/mod.py", EdgeKind.DYNAMIC_IMPORT),
+    ]
+    assert result.unresolved_references == []
+
+
+def test_an_else_branch_of_type_checking_is_runtime(tmp_path: Path) -> None:
+    _write(tmp_path / "a.py", "")
+    _write(tmp_path / "b.py", "")
+    _write(
+        tmp_path / "app.py",
+        "from typing import TYPE_CHECKING\n"
+        "\n"
+        "if TYPE_CHECKING:\n"
+        "    import a\n"
+        "else:\n"
+        "    import b\n",
+    )
+
+    result = parse_repository(tmp_path)
+
+    assert {edge.target: edge.condition for edge in result.edges} == {
+        "a.py": ImportCondition.TYPE_ONLY,
+        "b.py": None,
+    }
+
+
+def test_an_elif_branch_of_type_checking_is_runtime(tmp_path: Path) -> None:
+    _write(tmp_path / "a.py", "")
+    _write(tmp_path / "b.py", "")
+    _write(
+        tmp_path / "app.py",
+        "from typing import TYPE_CHECKING\n"
+        "\n"
+        "if TYPE_CHECKING:\n"
+        "    import a\n"
+        "elif True:\n"
+        "    import b\n",
+    )
+
+    result = parse_repository(tmp_path)
+
+    assert {edge.target: edge.condition for edge in result.edges} == {
+        "a.py": ImportCondition.TYPE_ONLY,
+        "b.py": None,
+    }
+
+
+def test_an_elif_naming_type_checking_is_type_only(tmp_path: Path) -> None:
+    _write(tmp_path / "a.py", "")
+    _write(tmp_path / "c.py", "")
+    _write(
+        tmp_path / "app.py",
+        "from typing import TYPE_CHECKING\n"
+        "\n"
+        "if True:\n"
+        "    import c\n"
+        "elif TYPE_CHECKING:\n"
+        "    import a\n",
+    )
+
+    result = parse_repository(tmp_path)
+
+    assert {edge.target: edge.condition for edge in result.edges} == {
+        "a.py": ImportCondition.TYPE_ONLY,
+        "c.py": None,
+    }
+
+
+def test_a_loose_module_shadows_a_namespace_folder(tmp_path: Path) -> None:
+    _write(tmp_path / "pkg.py", "VALUE = 1\n")
+    _write(tmp_path / "pkg" / "mod.py", "VALUE = 2\n")
+    _write(tmp_path / "app.py", "import pkg.mod\n")
+
+    result = parse_repository(tmp_path)
+
+    assert [(record.reference, record.reason) for record in result.unresolved_references] == [
+        ("pkg.mod", "parent module is not a package")
+    ]
+    assert result.edges == []
+
+    _write(tmp_path / "pkg" / "__init__.py", "")
+
+    result = parse_repository(tmp_path)
+
+    assert [(edge.source, edge.target) for edge in result.edges] == [("app.py", "pkg/mod.py")]
+
+
+def test_a_long_non_literal_dynamic_import_text_is_bounded(tmp_path: Path) -> None:
+    arguments = " + ".join(f"part_{index}" for index in range(20))
+    call = f"__import__({arguments})"
+    _write(tmp_path / "app.py", f"{call}\n")
+
+    result = parse_repository(tmp_path)
+
+    record = result.unresolved_references[0]
+    assert record.reason == "non-literal dynamic import"
+    assert record.reference == f"{call[:MAX_REFERENCE_TEXT]}..."
+    assert len(record.reference) == MAX_REFERENCE_TEXT + 3
+    assert (record.line, record.column) == (1, 1)
+
+
+def test_a_short_non_literal_dynamic_import_text_is_unchanged(tmp_path: Path) -> None:
+    _write(tmp_path / "app.py", "VALUE = __import__(name)\n")
+
+    result = parse_repository(tmp_path)
+
+    record = result.unresolved_references[0]
+    assert record.reference == "__import__(name)"
+    assert record.reason == "non-literal dynamic import"
+    assert (record.line, record.column) == (1, 9)
+
+
+def test_an_explicit_import_of_a_subpackage_lands_on_its_init(tmp_path: Path) -> None:
+    _write(tmp_path / "pkg" / "__init__.py", "")
+    _write(tmp_path / "pkg" / "sub" / "__init__.py", "")
+    _write(tmp_path / "pkg" / "app.py", "import pkg.sub\n")
+
+    result = parse_repository(tmp_path)
+
+    assert [(edge.source, edge.target) for edge in result.edges] == [
+        ("pkg/app.py", "pkg/sub/__init__.py")
     ]
     assert result.unresolved_references == []
