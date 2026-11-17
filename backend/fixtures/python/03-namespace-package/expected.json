@@ -1,0 +1,94 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language python; tree-sitter 0.26.0; tree-sitter-python 0.25.0)",
+  "python": {
+    "import_root": ".",
+    "import_root_rule": "repository root"
+  },
+  "files": [
+    {
+      "path": "consumer/__init__.py",
+      "folder": "consumer",
+      "language": "python",
+      "line_count": 0,
+      "content_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "consumer",
+        "package_kind": "regular",
+        "is_package": true
+      }
+    },
+    {
+      "path": "consumer/app.py",
+      "folder": "consumer",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:dafb1ea4f71b652840985c90738b048e91ae71320baceec4d6f97301973182f1",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "consumer.app",
+        "package_kind": "regular",
+        "is_package": false
+      }
+    },
+    {
+      "path": "plugins/tool.py",
+      "folder": "plugins",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "plugins.tool",
+        "package_kind": "namespace",
+        "is_package": false
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "consumer/app.py",
+      "target": "plugins/tool.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 2,
+    "resolved": 2,
+    "symbols": 0,
+    "star_imports": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 0,
+    "python": {
+      "namespace_packages": 1
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 3,
+    "parsed": 3,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodeCraft parser output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "parser_version",
+    "python",
+    "files",
+    "excluded_directories",
+    "edges",
+    "symbol_references",
+    "star_import_references",
+    "unresolved_references",
+    "external_references",
+    "excluded_references",
+    "coverage",
+    "file_coverage"
+  ],
+  "properties": {
+    "parser_version": { "type": "string" },
+    "python": {
+      "anyOf": [
+        { "$ref": "#/$defs/python_repository_details" },
+        { "type": "null" }
+      ]
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/file_record" }
+    },
+    "excluded_directories": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/excluded_directory" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "symbol_references": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/symbol_record" }
+    },
+    "star_import_references": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/star_import_record" }
+    },
+    "unresolved_references": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reference_record" }
+    },
+    "external_references": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/external_reference" }
+    },
+    "excluded_references": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reference_record" }
+    },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "file_coverage": { "$ref": "#/$defs/file_coverage" }
+  },
+  "$defs": {
+    "parse_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "line", "column"],
+      "properties": {
+        "reason": { "type": "string" },
+        "line": { "type": ["integer", "null"], "minimum": 1 },
+        "column": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    },
+    "python_file_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module", "package_kind", "is_package"],
+      "properties": {
+        "module": { "type": ["string", "null"] },
+        "package_kind": { "enum": ["regular", "namespace", null] },
+        "is_package": { "type": "boolean" }
+      }
+    },
+    "file_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "folder",
+        "language",
+        "line_count",
+        "content_hash",
+        "is_node",
+        "excluded_reason",
+        "parse_failure",
+        "adapter_role",
+        "python"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "folder": { "type": "string" },
+        "language": { "enum": ["python", null] },
+        "line_count": { "type": ["integer", "null"], "minimum": 0 },
+        "content_hash": {
+          "anyOf": [
+            { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+            { "type": "null" }
+          ]
+        },
+        "is_node": { "type": "boolean" },
+        "excluded_reason": { "type": ["string", "null"] },
+        "parse_failure": {
+          "anyOf": [
+            { "$ref": "#/$defs/parse_failure" },
+            { "type": "null" }
+          ]
+        },
+        "adapter_role": { "enum": ["fallback"] },
+        "python": {
+          "anyOf": [
+            { "$ref": "#/$defs/python_file_details" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "excluded_directory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "reason"],
+      "properties": {
+        "path": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target", "kind", "condition", "line", "column"],
+      "properties": {
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "kind": { "enum": ["import", "dynamic_import"] },
+        "condition": { "enum": ["type_only", "optional", "lazy", null] },
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "symbol_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "module", "name", "status", "line", "column"],
+      "properties": {
+        "source": { "type": "string" },
+        "module": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "enum": ["symbol of resolved module, not verified"] },
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "star_import_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "module", "status", "line", "column"],
+      "properties": {
+        "source": { "type": "string" },
+        "module": { "type": "string" },
+        "status": { "enum": ["names not enumerated"] },
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "reference_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "reference", "reason", "line", "column"],
+      "properties": {
+        "source": { "type": "string" },
+        "reference": { "type": "string" },
+        "reason": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "external_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "reference", "top_level", "line", "column"],
+      "properties": {
+        "source": { "type": "string" },
+        "reference": { "type": "string" },
+        "top_level": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "python_coverage_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace_packages"],
+      "properties": {
+        "namespace_packages": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "references",
+        "resolved",
+        "symbols",
+        "star_imports",
+        "external",
+        "excluded",
+        "failed",
+        "python",
+        "failures_by_reason",
+        "failure_examples"
+      ],
+      "properties": {
+        "references": { "type": "integer", "minimum": 0 },
+        "resolved": { "type": "integer", "minimum": 0 },
+        "symbols": { "type": "integer", "minimum": 0 },
+        "star_imports": { "type": "integer", "minimum": 0 },
+        "external": { "type": "integer", "minimum": 0 },
+        "excluded": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "python": {
+          "anyOf": [
+            { "$ref": "#/$defs/python_coverage_details" },
+            { "type": "null" }
+          ]
+        },
+        "failures_by_reason": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "failure_examples": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reference_record" }
+        }
+      }
+    },
+    "file_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["found", "parsed", "failed_parse", "excluded", "excluded_by_reason"],
+      "properties": {
+        "found": { "type": "integer", "minimum": 0 },
+        "parsed": { "type": "integer", "minimum": 0 },
+        "failed_parse": { "type": "integer", "minimum": 0 },
+        "excluded": { "type": "integer", "minimum": 0 },
+        "excluded_by_reason": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "python_repository_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["import_root", "import_root_rule"],
+      "properties": {
+        "import_root": { "type": "string" },
+        "import_root_rule": { "type": "string" }
+      }
+    }
+  }
+}

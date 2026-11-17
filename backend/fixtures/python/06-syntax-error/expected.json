@@ -1,0 +1,82 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language python; tree-sitter 0.26.0; tree-sitter-python 0.25.0)",
+  "python": {
+    "import_root": ".",
+    "import_root_rule": "repository root"
+  },
+  "files": [
+    {
+      "path": "broken.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 2,
+      "content_hash": "sha256:34e3e6b60138593e04c461064fcf5641ced2ebcef23ea2643c3155e8c6cf66fa",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": {
+        "reason": "syntax error: missing \")\"",
+        "line": 1,
+        "column": 12
+      },
+      "adapter_role": "fallback",
+      "python": {
+        "module": "broken",
+        "package_kind": null,
+        "is_package": false
+      }
+    },
+    {
+      "path": "consumer.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:9e3c11b650eaa70be3276861f813437a45f477f88989d39cb8b7e64634ab9275",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "consumer",
+        "package_kind": null,
+        "is_package": false
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "consumer.py",
+      "target": "broken.py",
+      "kind": "import",
+      "condition": null,
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 1,
+    "resolved": 1,
+    "symbols": 0,
+    "star_imports": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 0,
+    "python": {
+      "namespace_packages": 0
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 2,
+    "parsed": 1,
+    "failed_parse": 1,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

@@ -13,6 +13,8 @@ members = ["packages/*"]
 [tool.ruff]
 line-length = 100
 target-version = "py314"
+# Fixtures are input data, not workspace code, and are never linted.
+extend-exclude = ["fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
@@ -21,6 +23,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 typeCheckingMode = "strict"
 pythonVersion = "3.14"
 include = ["packages"]
+exclude = ["fixtures"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages"]
@@ -46,9 +49,21 @@ type = "forbidden"
 source_modules = ["codecraft_parsing", "codecraft_analysis"]
 forbidden_modules = ["codecraft_storage", "codecraft_explain", "codecraft_api"]
 
+# Import-linter refuses to name a language module that does not exist yet, so
+# Python-to-future-language isolation is checked by test_language_isolation.py
+# until a second language is added.
+[[tool.importlinter.contracts]]
+name = "Common parsing code imports no language parser"
+type = "forbidden"
+source_modules = ["codecraft_parsing.common"]
+forbidden_modules = [
+  "codecraft_parsing.python",
+]
+
 [dependency-groups]
 dev = [
     "import-linter>=2.16",
+    "jsonschema>=4.26.0",
     "pyright>=1.1.414",
     "pytest>=9.2.0",
     "ruff>=0.17.4",
