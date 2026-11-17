@@ -183,13 +183,13 @@ Version 1 has these adapters: Next.js, React, NestJS and Express for TypeScript 
 
 **Gin.** Roles come from package and file conventions, as for the standard HTTP package. Routes are shown when a method call on an engine or route group in the same file has a literal path, and any group prefix is also a literal in that file. An engine or group passed between files, or a path built from variables, is composed or computed, so those routes are absent.
 
-Every adapter is tested with fixtures that contain both a literal route, which must be shown, and a composed route, which must be absent. Each adapter's exact cases are confirmed against that framework's documentation when its phase begins. Adding a framework later follows the same steps: it states its exact cases before it is built, and its fixtures come with it.
+An adapter that recovers routes is tested with fixtures that contain both a literal route, which must be shown, and a composed route, which must be absent. An adapter that recovers no routes, such as React, is tested with a role-only fixture, which must show the roles and no routes. Each adapter's exact cases are confirmed against that framework's documentation when its phase begins. Adding a framework later follows the same steps: it states its exact cases before it is built, and its fixtures come with it.
 
 ## Cross-language links
 
-A link connects code in one language to code in another only when both ends are literal and match exactly. The main case is a frontend call and a backend route with the same method and the same full path. A call built from a variable, a base address read from configuration, or a path that differs by case or by a trailing slash is absent.
+A link connects code in one language to code in another only when both ends are literal, match exactly, and the call targets the server that owns the route. The main case is a frontend call and a backend route with the same method and the same full path. A literal absolute URL to a different server stays unresolved, even when its method and path match. A call built from a variable, a base address read from configuration, or a path that differs by case or by a trailing slash is absent.
 
-CORS is a configuration setting on the server, not a link between two files. It is shown as a fact about that file, not as an edge. A repository with two languages shows each language's graph separately; links appear only after the adapters have recovered routes on both sides.
+CORS is a configuration setting on the server, not a link between two files. It is shown as a fact about that file, not as an edge. A repository with two languages shows each language's graph separately; a link appears only after the backend adapter has recovered the route and a literal frontend call matching it has been recognised. How frontend calls are recognised is decided when the cross-language phase begins.
 
 ## The interface
 

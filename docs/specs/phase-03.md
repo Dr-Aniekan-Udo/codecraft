@@ -32,7 +32,8 @@ Fan-in and fan-out are not part of the parser output. The frontend computes them
 - **Each part is checked on its own.** A failure in one part is found in that part's small surface, not in all three.
 - **Test fixtures are plain files.** Source, manifests and an expected-output file. Nothing in a fixture is installed or run. Fixtures live in the backend's fixtures area, grouped by language, and are excluded from every workspace and linter.
 - **Each language is isolated.** Code for one language does not import code for another. Shared behaviour, such as walking, hashing and output assembly, lives in a common part that every language may use. The boundary is enforced by an automated check, not by convention.
-- **Parsing is bounded.** A maximum file count and a maximum file size are set. A repository over either limit fails the run with a stated reason. It never hangs or runs out of memory, and a file over the size limit is excluded with its reason, never read in part.
+- **Parsing is bounded.** A maximum file count and a maximum file size are set. A repository over either limit fails the run with a stated reason. It never hangs or runs out of memory, and a file over the size limit is excluded with its reason, never read in part. This applies to every read, including configuration files.
+- **Nothing is omitted silently.** A directory that cannot be listed, a file that cannot be read, and a file whose text cannot be encoded are each recorded with a reason. The run continues where it safely can. A scan with an unreadable part is never reported as complete.
 - **Symbolic links never create duplicate nodes or loops.** A link is recorded with its reason and its contents are not read. A link pointing inside the repository does not create a second node for the same file.
 - **Committed virtual environments are external.** A folder holding an installed environment that is committed to the repository is excluded as third-party code. Its contents create no nodes and no edges, and it is recorded with its reason.
 - **Real repositories are pinned.** Each real test repository is pinned to one commit, written into this spec with its full commit ID and date. They are cloned by the test harness, never committed to our repo, and never cloned by the parser. The measured figures for each pinned repository are kept in the baseline record in the contracts area, and each later run is compared against it.
@@ -110,7 +111,7 @@ Report the results of checks 1 to 7 with the exact output. Then wait. Do not sta
 
 ### Build
 
-- Read each repository's module path from its module file, and treat that path as the root for resolving imports inside the repository.
+- Read each repository's module path from its module file, and treat that path as the root for resolving imports inside the repository. Also read the workspace file and any local `replace` directives. Each workspace module and each local replacement target sits inside the repository, and resolves to its own folder with its own module path.
 - Read each Go file's imports and turn them into edges. Go edges point at **packages**, not at single files. A package is the set of files in one folder with the same package name. An edge from a file to a package means the file uses that package.
 - Handle the Go-specific cases in the constraints below.
 - Record build constraints for each file, and exclude files that do not apply to the platform the parser is targeting, with a reason.
@@ -120,7 +121,7 @@ Report the results of checks 1 to 7 with the exact output. Then wait. Do not sta
 ### Constraints
 
 - **An edge to a package is recorded as an edge to the package's folder.** It is never recorded as an edge to one file, because Go does not say which file in a package is used. The output says the target is a package.
-- **Imports that point inside the module resolve. Imports from outside it are external.** A path that begins with the module path is inside the repository, and resolves to the matching folder. A path that does not is external, recorded with its module name.
+- **Imports that point inside a repository module resolve. Imports from outside every repository module are external.** A path is inside a module only when it equals the module path, or continues from it after a `/`. So with the module `github.com/acme/app`, the path `github.com/acme/app/pkg` is inside, and `github.com/acme/app-tools/pkg` is external, recorded with its module name. Each in-repository module is checked this way, including workspace modules and local replacement targets.
 - **A folder with no matching package is unresolved with that reason.** A module path that points at a folder that does not exist is never guessed at.
 - **Build constraints decide which files count.** A file that is excluded for the target platform is recorded as excluded with the constraint named. It is not treated as missing.
 - **Test files are nodes, and they never create edges into the packages they test.** A test file imports the code it tests, but the code does not depend on its test. Test files therefore produce edges out, but no edges in from production code. This is recorded in the output as a test file, so the map can show it differently later.
