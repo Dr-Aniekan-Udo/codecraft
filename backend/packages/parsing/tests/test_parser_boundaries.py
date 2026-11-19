@@ -1,4 +1,4 @@
-"""The parser core names no Python web framework, per Part 3a acceptance check 7."""
+"""The parser core names no web framework."""
 
 import re
 from pathlib import Path
@@ -14,6 +14,15 @@ _FRAMEWORK_NAMES = (
     "bottle",
     "sanic",
     "quart",
+    "gin",
+    "fiber",
+    "echo",
+    "chi",
+    "gorilla",
+    "beego",
+    "revel",
+    "buffalo",
+    "iris",
 )
 
 _PATTERN = re.compile(r"\b(?:" + "|".join(_FRAMEWORK_NAMES) + r")\b", re.IGNORECASE)

@@ -9,13 +9,14 @@ from pathlib import Path
 
 from codecraft_core.model import RepositoryParse
 
+from codecraft_parsing.go.parser import parse_go_repository
 from codecraft_parsing.python.parser import parse_python_repository
-from codecraft_parsing.python.version import PARSER_VERSION
 
 type LanguageParser = Callable[[Path], RepositoryParse]
 
 _PARSERS: dict[str, LanguageParser] = {
     "python": parse_python_repository,
+    "go": parse_go_repository,
 }
 SUPPORTED_LANGUAGES: tuple[str, ...] = tuple(_PARSERS)
 
@@ -28,4 +29,4 @@ def parse_repository(root: Path, language: str = "python") -> RepositoryParse:
     return parser(Path(root))
 
 
-__all__ = ["PARSER_VERSION", "SUPPORTED_LANGUAGES", "parse_repository"]
+__all__ = ["SUPPORTED_LANGUAGES", "parse_repository"]

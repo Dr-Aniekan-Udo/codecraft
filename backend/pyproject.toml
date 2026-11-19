@@ -49,16 +49,26 @@ type = "forbidden"
 source_modules = ["codecraft_parsing", "codecraft_analysis"]
 forbidden_modules = ["codecraft_storage", "codecraft_explain", "codecraft_api"]
 
-# Import-linter refuses to name a language module that does not exist yet, so
-# Python-to-future-language isolation is checked by test_language_isolation.py
-# until a second language is added.
 [[tool.importlinter.contracts]]
 name = "Common parsing code imports no language parser"
 type = "forbidden"
 source_modules = ["codecraft_parsing.common"]
 forbidden_modules = [
   "codecraft_parsing.python",
+  "codecraft_parsing.go",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Python parser imports no Go parser"
+type = "forbidden"
+source_modules = ["codecraft_parsing.python"]
+forbidden_modules = ["codecraft_parsing.go"]
+
+[[tool.importlinter.contracts]]
+name = "Go parser imports no Python parser"
+type = "forbidden"
+source_modules = ["codecraft_parsing.go"]
+forbidden_modules = ["codecraft_parsing.python"]
 
 [dependency-groups]
 dev = [

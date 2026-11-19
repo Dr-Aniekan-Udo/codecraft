@@ -42,6 +42,25 @@ def test_written_output_reads_back_with_every_field_and_type(tmp_path: Path) -> 
     assert all(record.content_hash is not None for record in parsed.files)
 
 
+def test_the_go_summary_reports_the_cgo_count() -> None:
+    repo = _FIXTURES.parent / "go" / "16-cgo" / "repo"
+
+    completed = _run(str(repo), "--language", "go")
+
+    assert completed.returncode == 0, completed.stderr
+    assert "1 cgo" in completed.stdout
+
+
+def test_the_go_summary_reports_a_module_file_parse_failure() -> None:
+    repo = _FIXTURES.parent / "go" / "20-malformed-module" / "repo"
+
+    completed = _run(str(repo), "--language", "go")
+
+    assert completed.returncode == 0, completed.stderr
+    assert "parse failures:" in completed.stdout
+    assert "malformed module file: 1" in completed.stdout
+
+
 def test_a_missing_directory_exits_with_a_message(tmp_path: Path) -> None:
     completed = _run(str(tmp_path / "absent"))
     assert completed.returncode == 2
