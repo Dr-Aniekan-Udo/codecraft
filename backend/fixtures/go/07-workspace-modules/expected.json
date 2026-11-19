@@ -1,0 +1,145 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language go; tree-sitter 0.26.0; tree-sitter-go 0.25.0)",
+  "python": null,
+  "go": {
+    "build_context": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "modules": [
+      {
+        "module_path": "example.com/app",
+        "folder": "app",
+        "source": "workspace"
+      },
+      {
+        "module_path": "example.com/lib",
+        "folder": "lib",
+        "source": "workspace"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "app/go.mod",
+      "folder": "app",
+      "language": null,
+      "line_count": 3,
+      "content_hash": "sha256:6e9542b178eb0958fa47e7eb9be69c5dceaddb0bd16f51ed3e03b8d2a526842a",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "app/main.go",
+      "folder": "app",
+      "language": "go",
+      "line_count": 5,
+      "content_hash": "sha256:9fa6563208379463530205ee5a61b8ce58c91537fa21d5dfa95f3c01bab95345",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "main",
+        "module_path": "example.com/app",
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    },
+    {
+      "path": "go.work",
+      "folder": ".",
+      "language": null,
+      "line_count": 6,
+      "content_hash": "sha256:3c31f6ccb06d7f98acc6c881dea59b28b4e93e23b211f9508b30eb95927a168b",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "lib/go.mod",
+      "folder": "lib",
+      "language": null,
+      "line_count": 3,
+      "content_hash": "sha256:099ac2cafe97f876274f9060d2b169c50cef965dd517aac45943991965f54679",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "lib/lib.go",
+      "folder": "lib",
+      "language": "go",
+      "line_count": 1,
+      "content_hash": "sha256:6d5de2f89b37d300a3aea78915deab1ef26054b0edd6324ecfc6b168abd8a0ae",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "lib",
+        "module_path": "example.com/lib",
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "app/main.go",
+      "target": "lib",
+      "target_kind": "package",
+      "kind": "import",
+      "condition": null,
+      "alias": null,
+      "line": 3,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 1,
+    "resolved": 1,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 0,
+    "python": null,
+    "go": {
+      "packages": 2
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 5,
+    "parsed": 2,
+    "failed_parse": 0,
+    "excluded": 3,
+    "excluded_by_reason": {
+      "not a Go file": 3
+    }
+  }
+}

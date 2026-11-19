@@ -1,0 +1,114 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language go; tree-sitter 0.26.0; tree-sitter-go 0.25.0)",
+  "python": null,
+  "go": {
+    "build_context": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "modules": []
+  },
+  "files": [
+    {
+      "path": "main.go",
+      "folder": ".",
+      "language": "go",
+      "line_count": 6,
+      "content_hash": "sha256:bd0a8f5d6276cc14189ec0e1ac4d1790f9d4d8d78d9b6a2bae1f3511951be30d",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "main",
+        "module_path": null,
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    },
+    {
+      "path": "pkg/pkg.go",
+      "folder": "pkg",
+      "language": "go",
+      "line_count": 1,
+      "content_hash": "sha256:a7b92614d2024fe2c230fc2384eb004c430483cd4ce7c7c12aeed66e69342a07",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "pkg",
+        "module_path": null,
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "main.go",
+      "reference": "example.com/app/pkg",
+      "reason": "no module file declares a path",
+      "line": 3,
+      "column": 1
+    },
+    {
+      "source": "main.go",
+      "reference": "fmt",
+      "reason": "no module file declares a path",
+      "line": 4,
+      "column": 1
+    }
+  ],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 2,
+    "resolved": 0,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 2,
+    "python": null,
+    "go": {
+      "packages": 2
+    },
+    "failures_by_reason": {
+      "no module file declares a path": 2
+    },
+    "failure_examples": [
+      {
+        "source": "main.go",
+        "reference": "example.com/app/pkg",
+        "reason": "no module file declares a path",
+        "line": 3,
+        "column": 1
+      },
+      {
+        "source": "main.go",
+        "reference": "fmt",
+        "reason": "no module file declares a path",
+        "line": 4,
+        "column": 1
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 2,
+    "parsed": 2,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

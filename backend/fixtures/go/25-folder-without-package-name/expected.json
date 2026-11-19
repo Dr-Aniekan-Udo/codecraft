@@ -1,0 +1,121 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language go; tree-sitter 0.26.0; tree-sitter-go 0.25.0)",
+  "python": null,
+  "go": {
+    "build_context": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "modules": [
+      {
+        "module_path": "example.com/app",
+        "folder": ".",
+        "source": "module_file"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "empty/empty.go",
+      "folder": "empty",
+      "language": "go",
+      "line_count": 1,
+      "content_hash": "sha256:818886d85c07e493cc7970e31506274a61d330af374007d70e79f07e51bff46f",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "",
+        "module_path": "example.com/app",
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    },
+    {
+      "path": "go.mod",
+      "folder": ".",
+      "language": null,
+      "line_count": 3,
+      "content_hash": "sha256:6e9542b178eb0958fa47e7eb9be69c5dceaddb0bd16f51ed3e03b8d2a526842a",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "main.go",
+      "folder": ".",
+      "language": "go",
+      "line_count": 5,
+      "content_hash": "sha256:cbe879a2ec053f7494d67a1b4dab5508e27b81b067aa8657c758fc1f7c5f4629",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "main",
+        "module_path": "example.com/app",
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "main.go",
+      "reference": "example.com/app/empty",
+      "reason": "package folder has no importable package",
+      "line": 3,
+      "column": 1
+    }
+  ],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 1,
+    "resolved": 0,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 1,
+    "python": null,
+    "go": {
+      "packages": 1
+    },
+    "failures_by_reason": {
+      "package folder has no importable package": 1
+    },
+    "failure_examples": [
+      {
+        "source": "main.go",
+        "reference": "example.com/app/empty",
+        "reason": "package folder has no importable package",
+        "line": 3,
+        "column": 1
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 3,
+    "parsed": 2,
+    "failed_parse": 0,
+    "excluded": 1,
+    "excluded_by_reason": {
+      "not a Go file": 1
+    }
+  }
+}
