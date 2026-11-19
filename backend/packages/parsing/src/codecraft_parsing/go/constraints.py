@@ -61,7 +61,7 @@ _GOARCH = frozenset(
 # that would prove it true.
 _TARGET_TAGS = frozenset({TARGET_OS, TARGET_ARCH, "unix", "gc"})
 _TOKEN = re.compile(r"&&|\|\||!|\(|\)|[A-Za-z0-9_.]+")
-_UNRECOGNISED = re.compile(r"[^A-Za-z0-9_.!(),\s]")
+_UNRECOGNISED = re.compile(r"[^A-Za-z0-9_.!()\s]")
 
 _GO_BUILD_PREFIX = "//go:build "
 _LEGACY_BUILD_PREFIX = "// +build "

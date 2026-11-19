@@ -49,7 +49,7 @@ class ModuleDiscovery:
     folder_failure_paths: dict[str, str | None]
     module_folders: frozenset[str]
     failed_module_folders: frozenset[str]
-    replacement_folders: frozenset[str]
+    replacement_targets: dict[str, str]
     has_module_file: bool
 
 
@@ -68,7 +68,7 @@ def read_module_discovery(
     folder_failure_paths: dict[str, str | None] = {}
     module_folders: set[str] = set()
     failed_module_folders: set[str] = set()
-    replacement_folders: set[str] = set()
+    replacement_targets: dict[str, str] = {}
     replacements: list[tuple[str, str, str]] = []
 
     reasons = file_reasons or {}
@@ -101,7 +101,7 @@ def read_module_discovery(
             root_path,
             modules,
             module_folders,
-            replacement_folders,
+            replacement_targets,
             folder_failures,
             failures,
             external_routes,
@@ -119,7 +119,7 @@ def read_module_discovery(
         folder_failure_paths=folder_failure_paths,
         module_folders=frozenset(module_folders),
         failed_module_folders=frozenset(failed_module_folders),
-        replacement_folders=frozenset(replacement_folders),
+        replacement_targets=dict(replacement_targets),
         has_module_file=bool(go_mod_paths),
     )
 
@@ -163,7 +163,7 @@ def _apply_replacement(
     root: Path,
     modules: list[GoModule],
     module_folders: set[str],
-    replacement_folders: set[str],
+    replacement_targets: dict[str, str],
     folder_failures: dict[str, str],
     failures: dict[str, str],
     external_routes: set[str],
@@ -174,6 +174,7 @@ def _apply_replacement(
     # A later directive, including go.work, replaces the earlier route.
     failures.pop(old, None)
     external_routes.discard(old)
+    replacement_targets.pop(old, None)
     modules[:] = [
         module
         for module in modules
@@ -190,7 +191,7 @@ def _apply_replacement(
     if not exists or folder is None:
         failures[old] = MISSING_REPLACEMENT_REASON
         return
-    replacement_folders.add(folder)
+    replacement_targets[old] = folder
     if folder in module_folders:
         reason = folder_failures.get(folder)
         if reason is not None:

@@ -62,6 +62,10 @@ _GO_FIXTURE_NAMES = (
     "41-replacement-over-module",
     "42-longer-external-route",
     "43-failed-nested-module-boundary",
+    "44-modern-build-comma",
+    "45-workspace-replacement-precedence",
+    "46-failed-module-depth",
+    "47-legacy-only-build",
 )
 
 

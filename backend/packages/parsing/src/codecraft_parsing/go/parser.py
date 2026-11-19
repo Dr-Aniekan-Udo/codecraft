@@ -256,7 +256,7 @@ def _resolve(
         _fail(outcome, source, raw, _EMPTY_IMPORT_PATH_REASON)
         return
 
-    module = _module_for(raw.reference, discovery.modules, discovery.replacement_folders)
+    module = _module_for(raw.reference, discovery.modules, discovery.replacement_targets)
     failure_route = _route_match(raw.reference, discovery.failures)
     external_route = _longest_route(raw.reference, discovery.external_routes)
     route_kind: str | None = None
@@ -292,7 +292,9 @@ def _resolve(
     target = _target_folder(module, raw.reference)
     owner = _module_at_folder(target, discovery.modules)
     failed_folder = _failed_folder_at(target, discovery)
-    if failed_folder is not None and (owner is None or len(owner.folder) <= len(failed_folder)):
+    if failed_folder is not None and (
+        owner is None or _folder_depth(owner.folder) <= _folder_depth(failed_folder)
+    ):
         _fail(outcome, source, raw, discovery.folder_failures[failed_folder])
         return
     if owner is not None and owner.module_path != module.module_path:
@@ -381,7 +383,7 @@ def _winning_failure_before_invalid(
     external = _longest_route(path, discovery.external_routes)
     if external is not None and len(external) > len(failure[0]):
         return None
-    module = _module_for(path, discovery.modules, discovery.replacement_folders)
+    module = _module_for(path, discovery.modules, discovery.replacement_targets)
     if module is not None and len(module.module_path) > len(failure[0]):
         return None
     return failure[1]
@@ -409,7 +411,7 @@ def _failed_module_reason(
 def _module_for(
     path: str,
     modules: tuple[GoModule, ...],
-    replacement_folders: frozenset[str],
+    replacement_targets: dict[str, str],
 ) -> GoModule | None:
     matches = [
         module
@@ -422,10 +424,14 @@ def _module_for(
         matches,
         key=lambda module: (
             len(module.module_path),
-            module.folder in replacement_folders,
+            replacement_targets.get(module.module_path) == module.folder,
             module.module_path,
         ),
     )
+
+
+def _folder_depth(folder: str) -> int:
+    return 0 if folder == "." else folder.count("/") + 1
 
 
 def _failed_folder_at(folder: str, discovery: ModuleDiscovery) -> str | None:

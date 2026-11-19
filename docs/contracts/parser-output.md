@@ -303,11 +303,12 @@ A single Go import declaration reports the declaration's start. Each spec in a g
 import reports its own start.
 
 Build constraints come from `//go:build` and `// +build` lines and from filename suffixes.
-They are recorded per file as written. A `//go:build` line decides exclusion when present;
-legacy `// +build` lines remain metadata only. An expression with a character outside
-whitespace, letters, digits, `_`, `.`, parentheses, comma, `!`, `&&` or `||`, or one nested
-beyond the reader's depth, is an excluded file with reason `malformed build constraint`;
-its `go` details repeat that reason. A filename suffix is a constraint only when a non-empty prefix precedes the
+They are recorded per file as written. A `//go:build` line decides exclusion when present.
+When no `//go:build` line exists, legacy `// +build` lines are evaluated and decide
+exclusion. A modern expression with a character outside whitespace, letters, digits, `_`,
+`.`, parentheses, `!`, `&&` or `||`, or one nested beyond the reader's depth, is an
+excluded file with reason `malformed build constraint`; its `go` details repeat that
+reason. Legacy `// +build` lines keep their existing comma-separated grammar. A filename suffix is a constraint only when a non-empty prefix precedes the
 first underscore: `js.go` and `js_test.go` are plain files, while `windows_amd64.go`
 carries only the amd64 suffix. A filename suffix carrying both GOOS and GOARCH is recorded
 as two filename constraints, one for each term. The target sets `linux`, `amd64`, `unix`
