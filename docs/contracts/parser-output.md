@@ -124,10 +124,10 @@ inside a `try` block, or inside a function body keeps `kind: import` (or
 kind to know it is an import, and the condition to know when it runs.
 
 Python edges use `kind: import` or `dynamic_import`, `target_kind: file`, and a null
-`alias` unless the imported name is aliased. Go edges use `kind: import`, `blank_import` or
-`dot_import`, always `target_kind: package`, and `alias` carries a named alias when one is
-written. A blank or dot import's form is in `kind`, so its `alias` is null. An alias is
-never a kind.
+`alias`; Python aliases are not currently recorded. Go edges use `kind: import`,
+`blank_import` or `dot_import`, always `target_kind: package`, and `alias` carries a named
+alias when one is written. A blank or dot import's form is in `kind`, so its `alias` is
+null. An alias is never a kind.
 
 Edges are unique by `(source, target, target_kind, kind, condition, alias)`; when the
 same connection is written more than once, the earliest location is kept. Sorted by
@@ -244,14 +244,16 @@ not exist fails each import that uses it with reason `replacement target does no
 A replacement to a local folder whose module file declares another module path fails each
 import that uses the replaced path with reason
 `replacement target declares a different module path`.
-Replace directives in `go.mod` and `go.work` are read. The target is never guessed or
-created.
+Quoted paths in `go.mod` and `go.work` are one argument; spaces inside quotes are
+preserved. A later replacement, including one in `go.work`, overrides the earlier route
+for the same module, whether that route was a failure or external. Replace directives in
+`go.mod` and `go.work` are read. The target is never guessed or created.
 
 A module file with an unreadable or malformed directive carries the failure on its own
 file record. An import depends on that module when its path equals the module path or
-continues from it after a `/`; each such import is unresolved with the same reason.
-Imports outside every module stay external, including imports from files in the module's
-folder. A module file with no readable path fails every import from its files, because
+continues from it after a `/`; each such import is unresolved with the same reason unless
+a longer, healthy module path also matches the import. Imports outside every module stay
+external, including imports from files in the module's folder. A module file with no readable path fails every import from its files, because
 internal and external paths cannot be told apart without it. The failure reason is
 `malformed module file` for invalid syntax, or the file record's own exclusion reason
 when the file could not be read.
@@ -284,7 +286,9 @@ folder that exists but has only test files has no importable package and is unre
 reason `package folder has no importable package`. A Go file with no package clause keeps
 its node with `package: ""`; it is not importable, and it is not counted in `packages`.
 An import whose target folder has only non-test
-`package main` files is unresolved with reason `imports a main package`. An import
+`package main` files is unresolved with reason `imports a main package`. An import whose
+target folder belongs to a nested module other than the module the import matched is
+unresolved with reason `package folder belongs to another module`. An import
 path ending in `/` is unresolved with reason `import path ends with a slash`. An empty
 import path is unresolved with reason `import path is empty`. An import spec without a
 readable literal path is unresolved with reason `import path is not a literal string` or
@@ -294,23 +298,29 @@ A single Go import declaration reports the declaration's start. Each spec in a g
 import reports its own start.
 
 Build constraints come from `//go:build` and `// +build` lines and from filename suffixes.
-They are recorded per file as written. A filename suffix is a constraint only when a
-non-empty prefix precedes the first underscore: `js.go` and `js_test.go` are plain files,
-while `windows_amd64.go` carries only the amd64 suffix. A filename suffix carrying both
-GOOS and GOARCH is recorded as two filename constraints, one for each term. The target sets
-`linux`, `amd64`, `unix` and `gc` true; `cgo` and `go1.N` release tags are false. A file
-that the target context excludes is an excluded file with reason `build constraint excludes
-file for <os>/<arch>`; its `go` details repeat that reason and it is never treated as
-missing. Test files (`_test.go`) are nodes
-with `is_test: true`, and they produce outgoing edges only. Production code never gets an
+They are recorded per file as written. A `//go:build` line decides exclusion when present;
+legacy `// +build` lines remain metadata only. An expression nested beyond the reader's
+depth is an excluded file with reason `malformed build constraint`; its `go` details repeat
+that reason. A filename suffix is a constraint only when a non-empty prefix precedes the
+first underscore: `js.go` and `js_test.go` are plain files, while `windows_amd64.go`
+carries only the amd64 suffix. A filename suffix carrying both GOOS and GOARCH is recorded
+as two filename constraints, one for each term. The target sets `linux`, `amd64`, `unix`
+and `gc` true; `cgo` and `go1.N` release tags are false. A file that the target context
+excludes is an excluded file with reason `build constraint excludes file for <os>/<arch>`;
+its `go` details repeat that reason and it is never treated as missing. A Go filename
+beginning `_` or `.` is excluded with reason `ignored by the Go tool`. Test files
+(`_test.go`) are nodes
+with `is_test: true`, and they produce outgoing edges only. A non-test file whose package
+name ends in `_test` is an ordinary importable package. Production code never gets an
 edge into a test file: a package target resolves only when the folder has at least one
 non-test Go file of that package. A blank import (`_ "path"`) is `blank_import`, a dot
 import is `dot_import`, and a named alias is recorded in `alias`. An import path exactly
 `C` is the cgo pseudo-package: it writes one cgo record and no edge, external reference or
 failure.
 
-A folder whose non-test files name more than one package, other than a `_test` package,
-is conflicting. Each conflicting non-test file keeps its node. A conflicting file that
+A folder whose non-test files name more than one package is conflicting. A test file
+whose package name ends in `_test` is excluded from conflict detection; a non-test file
+with that package name takes part. Each conflicting non-test file keeps its node. A conflicting file that
 already has a syntax error keeps the syntax reason; every other conflicting non-test file
 carries a `parse_failure` with reason `conflicting package names in one folder`, `line` and
 `column` null. All conflicting files contribute no edges. A readable import in a

@@ -404,19 +404,20 @@ def _recover_error_imports(
     stack: list[Node] = [tree.root_node]
     while stack:
         node = stack.pop()
-        text = _strip_comments(_node_text(node)).strip()
-        if node.type == "ERROR" and text.startswith("import"):
-            if "(" in text:
-                line, column = source.position(node)
-                scanned = _scan_import_text(text, line, column, True)
-                if scanned is not None:
-                    recovered.extend(scanned)
-            elif text == "import":
-                sibling = node.next_named_sibling
-                if sibling is not None:
-                    sibling_text = _node_text(sibling)
-                    if sibling_text.startswith(("(", '"', "`")):
-                        recovered.extend(_reparse_import(node, sibling_text, parser))
+        if node.type == "ERROR":
+            text = _strip_comments(_node_text(node)).strip()
+            if text.startswith("import"):
+                if "(" in text:
+                    line, column = source.position(node)
+                    scanned = _scan_import_text(text, line, column, True)
+                    if scanned is not None:
+                        recovered.extend(scanned)
+                elif text == "import":
+                    sibling = node.next_named_sibling
+                    if sibling is not None:
+                        sibling_text = _node_text(sibling)
+                        if sibling_text.startswith(("(", '"', "`")):
+                            recovered.extend(_reparse_import(node, sibling_text, parser))
         stack.extend(reversed(node.named_children))
     return recovered
 

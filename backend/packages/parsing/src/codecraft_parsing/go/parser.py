@@ -48,6 +48,7 @@ _FOLDER_NOT_FOUND_REASON = "package folder not found in repository"
 _NO_IMPORTABLE_PACKAGE_REASON = "package folder has no importable package"
 _NO_MODULE_FILE_REASON = "no module file declares a path"
 _MAIN_PACKAGE_REASON = "imports a main package"
+_OTHER_MODULE_REASON = "package folder belongs to another module"
 _TRAILING_SLASH_REASON = "import path ends with a slash"
 _EMPTY_IMPORT_PATH_REASON = "import path is empty"
 _CGO_IMPORT_PATH = "C"
@@ -123,11 +124,7 @@ class PackageIndex:
         if any(_is_conflicting(record) for record in non_test):
             return PackageConflict()
         names = {
-            record.go.package
-            for record in non_test
-            if record.go is not None
-            and record.go.package
-            and not record.go.package.endswith("_test")
+            record.go.package for record in non_test if record.go is not None and record.go.package
         }
         if not names:
             return PackageNoImportable()
@@ -254,16 +251,21 @@ def _resolve(
         _fail(outcome, source, raw, _EMPTY_IMPORT_PATH_REASON)
         return
 
-    failure = _route_reason(raw.reference, discovery.failures)
-    if failure is not None:
-        _fail(outcome, source, raw, failure)
+    module = _module_for(raw.reference, discovery.modules)
+    failure_route = _route_match(raw.reference, discovery.failures)
+    if failure_route is not None and (
+        module is None or len(failure_route[0]) > len(module.module_path)
+    ):
+        _fail(outcome, source, raw, failure_route[1])
         return
 
-    if _route_matches(raw.reference, discovery.external_routes):
+    external_route = _longest_route(raw.reference, discovery.external_routes)
+    if external_route is not None and (
+        module is None or len(external_route) > len(module.module_path)
+    ):
         _external(outcome, source, raw)
         return
 
-    module = _module_for(raw.reference, discovery.modules)
     if module is None:
         # An outside path stays external; whether the importing file parses
         # does not change whether its package is external.
@@ -275,6 +277,10 @@ def _resolve(
         return
 
     target = _target_folder(module, raw.reference)
+    owner = _module_at_folder(target, discovery.modules)
+    if owner is not None and owner.module_path != module.module_path:
+        _fail(outcome, source, raw, _OTHER_MODULE_REASON)
+        return
     match index.resolve(target):
         case PackageAvailable():
             outcome.resolved += 1
@@ -334,19 +340,18 @@ def _fail(outcome: _ResolutionOutcome, source: FileRecord, raw: RawGoImport, rea
     )
 
 
-def _route_reason(path: str, routes: dict[str, str]) -> str | None:
+def _route_match(path: str, routes: dict[str, str]) -> tuple[str, str] | None:
     matches = [
         (prefix, reason)
         for prefix, reason in routes.items()
         if path == prefix or path.startswith(f"{prefix}/")
     ]
-    if not matches:
-        return None
-    return max(matches, key=lambda item: len(item[0]))[1]
+    return max(matches, key=lambda item: len(item[0])) if matches else None
 
 
-def _route_matches(path: str, routes: frozenset[str]) -> bool:
-    return any(path == prefix or path.startswith(f"{prefix}/") for prefix in routes)
+def _longest_route(path: str, routes: frozenset[str]) -> str | None:
+    matches = [prefix for prefix in routes if path == prefix or path.startswith(f"{prefix}/")]
+    return max(matches, key=len) if matches else None
 
 
 def _failed_module_reason(
@@ -365,8 +370,7 @@ def _failed_module_reason(
     module_path = discovery.folder_failure_paths.get(nearest)
     if module_path is None:
         return reason
-    if import_path == module_path or import_path.startswith(f"{module_path}/"):
-        return reason
+    # A readable path is compared with healthy modules by specificity later.
     return None
 
 
@@ -379,6 +383,17 @@ def _module_for(path: str, modules: tuple[GoModule, ...]) -> GoModule | None:
     if not matches:
         return None
     return max(matches, key=lambda module: len(module.module_path))
+
+
+def _module_at_folder(folder: str, modules: tuple[GoModule, ...]) -> GoModule | None:
+    matches = [
+        module
+        for module in modules
+        if module.folder == "." or folder == module.folder or folder.startswith(f"{module.folder}/")
+    ]
+    if not matches:
+        return None
+    return max(matches, key=lambda module: (len(module.folder), module.module_path))
 
 
 def _target_folder(module: GoModule, path: str) -> str:

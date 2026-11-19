@@ -1,5 +1,6 @@
 """Go resolution outcomes that are not covered by the fixed expected fixtures."""
 
+import time
 from pathlib import Path
 
 import pytest
@@ -163,6 +164,25 @@ def test_an_unreadable_module_file_uses_its_own_exclusion_reason(tmp_path: Path)
     assert [(record.reference, record.reason) for record in model.unresolved_references] == [
         ("example.com/app/pkg", "symbolic link")
     ]
+
+
+def test_recovery_does_not_scan_long_expressions(tmp_path: Path) -> None:
+    terms = "+".join(["1"] * 5000)
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": "module example.com/app\n\ngo 1.22\n",
+            "main.go": f"package main\n\nvar x = {terms}\n\nfunc broken() {{\n",
+        },
+    )
+
+    started = time.monotonic()
+    model = parse_repository(repo, "go")
+    elapsed = time.monotonic() - started
+
+    main_file = next(record for record in model.files if record.path == "main.go")
+    assert main_file.parse_failure is not None
+    assert elapsed < 5
 
 
 def test_readable_imports_after_a_damaged_function_are_recorded(tmp_path: Path) -> None:
@@ -376,6 +396,101 @@ def test_a_missing_path_spec_survives_a_malformed_line(tmp_path: Path) -> None:
         (record.reference, record.line, record.column) for record in model.external_references
     ] == [("a", 5, 5)]
     assert model.coverage.references == 3
+
+
+def test_an_ignored_go_file_contributes_no_imports(tmp_path: Path) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": "module example.com/app\n\ngo 1.22\n",
+            "main.go": "package main\n",
+            "_scratch.go": 'package main\n\nimport "fmt"\n',
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    record = next(record for record in model.files if record.path == "_scratch.go")
+    assert record.is_node is False
+    assert record.excluded_reason == "ignored by the Go tool"
+    assert model.external_references == []
+
+
+def test_a_non_go_dotfile_keeps_the_not_a_go_file_reason(tmp_path: Path) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": "module example.com/app\n\ngo 1.22\n",
+            "main.go": "package main\n",
+            ".gitignore": "ignored\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    record = next(record for record in model.files if record.path == ".gitignore")
+    assert record.excluded_reason == "not a Go file"
+
+
+def test_a_quoted_workspace_use_path_with_spaces_is_read(tmp_path: Path) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.work": 'go 1.22\n\nuse "./app dir"\n',
+            "app dir/go.mod": "module example.com/app\n\ngo 1.22\n",
+            "app dir/main.go": "package main\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    assert model.go is not None
+    module = next(module for module in model.go.modules if module.folder == "app dir")
+    assert module.source.value == "workspace"
+
+
+def test_a_workspace_replacement_overrides_an_external_route(tmp_path: Path) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": (
+                "module example.com/app\n\ngo 1.22\n\n"
+                "replace example.com/dep => example.com/dep v1.2.3\n"
+            ),
+            "go.work": "go 1.22\n\nreplace example.com/dep => ./lib\n",
+            "main.go": 'package main\n\nimport "example.com/dep/pkg"\n',
+            "lib/pkg/pkg.go": "package pkg\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    assert [(edge.source, edge.target) for edge in model.edges] == [("main.go", "lib/pkg")]
+    assert model.external_references == []
+
+
+def test_a_non_test_test_suffix_package_takes_part_in_a_conflict(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": "module example.com/app\n\ngo 1.22\n",
+            "main.go": 'package main\n\nimport "example.com/app/pkg"\n',
+            "pkg/one.go": "package helper_test\n",
+            "pkg/two.go": "package helper\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    assert [
+        (record.source, record.reference, record.reason) for record in model.unresolved_references
+    ] == [("main.go", "example.com/app/pkg", "conflicting package names in one folder")]
+    failures = {
+        record.path: record.parse_failure.reason
+        for record in model.files
+        if record.parse_failure is not None
+    }
+    assert failures == {
+        "pkg/one.go": "conflicting package names in one folder",
+        "pkg/two.go": "conflicting package names in one folder",
+    }
 
 
 def test_a_missing_import_path_is_recorded_when_the_file_fails(tmp_path: Path) -> None:

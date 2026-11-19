@@ -14,6 +14,8 @@ from codecraft_core.model import GoBuildConstraint, GoConstraintSource
 TARGET_OS = "linux"
 TARGET_ARCH = "amd64"
 EXCLUSION_REASON = f"build constraint excludes file for {TARGET_OS}/{TARGET_ARCH}"
+MALFORMED_BUILD_CONSTRAINT_REASON = "malformed build constraint"
+_MAX_EXPRESSION_DEPTH = 100
 
 _GOOS = frozenset(
     {
@@ -70,11 +72,15 @@ class ConstraintResult:
 
     constraints: tuple[GoBuildConstraint, ...]
     excluded: bool
+    exclusion_reason: str | None = None
 
 
 def read_build_constraints(path: str, text: str) -> ConstraintResult:
     """Read every constraint for ``path`` and evaluate it for the target."""
     constraints: list[GoBuildConstraint] = []
+    modern: list[str] = []
+    legacy: list[str] = []
+    malformed = False
     excluded = False
 
     for stripped in _constraint_lines(text):
@@ -83,13 +89,24 @@ def read_build_constraints(path: str, text: str) -> ConstraintResult:
             if not expression:
                 continue
             constraints.append(_constraint(GoConstraintSource.BUILD_LINE, expression))
-            if not _Expression(expression).evaluate():
-                excluded = True
+            modern.append(expression)
         elif stripped.startswith(_LEGACY_BUILD_PREFIX):
             expression = stripped[len(_LEGACY_BUILD_PREFIX) :].strip()
             if not expression:
                 continue
             constraints.append(_constraint(GoConstraintSource.BUILD_LINE, expression))
+            legacy.append(expression)
+
+    # Go gives //go:build precedence; legacy lines stay metadata only.
+    for expression in modern:
+        evaluator = _Expression(expression)
+        if not evaluator.evaluate():
+            if evaluator.malformed:
+                malformed = True
+            else:
+                excluded = True
+    if not modern:
+        for expression in legacy:
             if not _legacy_expression(expression):
                 excluded = True
 
@@ -98,7 +115,17 @@ def read_build_constraints(path: str, text: str) -> ConstraintResult:
         if expression not in {TARGET_OS, TARGET_ARCH}:
             excluded = True
 
-    return ConstraintResult(constraints=tuple(constraints), excluded=excluded)
+    if malformed:
+        return ConstraintResult(
+            constraints=tuple(constraints),
+            excluded=True,
+            exclusion_reason=MALFORMED_BUILD_CONSTRAINT_REASON,
+        )
+    return ConstraintResult(
+        constraints=tuple(constraints),
+        excluded=excluded,
+        exclusion_reason=EXCLUSION_REASON if excluded else None,
+    )
 
 
 def _constraint(source: GoConstraintSource, expression: str) -> GoBuildConstraint:
@@ -179,12 +206,26 @@ class _Expression:
         self._tokens = _TOKEN.findall(text)
         self._position = 0
         self._valid = True
+        self._depth = 0
+        self.malformed = False
 
     def evaluate(self) -> bool:
         if not self._tokens:
             return False
         value = self._or()
         return self._valid and value and self._position == len(self._tokens)
+
+    def _enter(self) -> bool:
+        self._depth += 1
+        if self._depth > _MAX_EXPRESSION_DEPTH:
+            self._valid = False
+            self.malformed = True
+            self._position = len(self._tokens)
+            return False
+        return True
+
+    def _leave(self) -> None:
+        self._depth -= 1
 
     def _or(self) -> bool:
         value = self._and()
@@ -205,13 +246,20 @@ class _Expression:
     def _unary(self) -> bool:
         if self._peek() == "!":
             self._position += 1
-            return not self._unary()
+            if not self._enter():
+                return False
+            value = not self._unary()
+            self._leave()
+            return value
         return self._primary()
 
     def _primary(self) -> bool:
         if self._peek() == "(":
             self._position += 1
+            if not self._enter():
+                return False
             value = self._or()
+            self._leave()
             if self._peek() == ")":
                 self._position += 1
             else:

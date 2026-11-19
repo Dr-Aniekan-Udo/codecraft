@@ -50,6 +50,14 @@ _GO_FIXTURE_NAMES = (
     "29-imports-in-damaged-body",
     "30-conflicting-file-with-imports",
     "31-malformed-import-spec",
+    "32-legacy-build-precedence",
+    "33-deep-build-expression",
+    "34-underscore-file",
+    "35-quoted-replace-path",
+    "36-workspace-replacement-override",
+    "37-non-test-helper-test",
+    "38-malformed-root-nested-tools",
+    "39-nested-module-ownership",
 )
 
 

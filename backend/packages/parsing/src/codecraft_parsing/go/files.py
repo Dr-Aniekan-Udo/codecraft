@@ -15,7 +15,7 @@ from codecraft_core.model import (
 from tree_sitter import Parser
 
 from codecraft_parsing.common.walker import FileClassification, WalkedFile, WalkResult
-from codecraft_parsing.go.constraints import EXCLUSION_REASON, read_build_constraints
+from codecraft_parsing.go.constraints import read_build_constraints
 from codecraft_parsing.go.manifests import ModuleDiscovery
 from codecraft_parsing.go.source import RawGoImport, parse_go_file
 
@@ -33,6 +33,8 @@ class BuiltGoFiles:
 
 def classify_go_file(name: str) -> FileClassification:
     if name.endswith(".go"):
+        if name.startswith(("_", ".")):
+            return FileClassification(False, None, "ignored by the Go tool")
         return FileClassification(True, Language.GO, None)
     return FileClassification(False, None, _NOT_GO)
 
@@ -71,7 +73,7 @@ def build_go_files(
             module_path=_module_path(walked_file.path, discovery),
             build_constraints=constraints.constraints,
             is_test=is_test,
-            build_constraint_exclusion_reason=(EXCLUSION_REASON if constraints.excluded else None),
+            build_constraint_exclusion_reason=constraints.exclusion_reason,
         )
         files.append(
             FileRecord(
@@ -81,7 +83,7 @@ def build_go_files(
                 line_count=len(data.splitlines()),
                 content_hash=walked_file.content_hash,
                 is_node=not constraints.excluded,
-                excluded_reason=EXCLUSION_REASON if constraints.excluded else None,
+                excluded_reason=constraints.exclusion_reason,
                 parse_failure=parsed.failure if not constraints.excluded else None,
                 adapter_role=AdapterRole.FALLBACK,
                 python=None,
@@ -125,11 +127,7 @@ def _apply_conflicting_packages(
             record = files[index]
             if record.go is not None:
                 parsed.append((index, record.go))
-        names = {
-            details.package
-            for _, details in parsed
-            if details.package and not details.package.endswith("_test")
-        }
+        names = {details.package for _, details in parsed if details.package}
         if len(names) > 1:
             conflicting.update(index for index, _ in parsed if files[index].parse_failure is None)
 

@@ -166,6 +166,15 @@ def _apply_replacement(
     old: str,
     new: str,
 ) -> None:
+    # A later directive, including go.work, replaces the earlier route.
+    failures.pop(old, None)
+    external_routes.discard(old)
+    modules[:] = [
+        module
+        for module in modules
+        if not (module.module_path == old and module.source == GoModuleSource.REPLACE)
+    ]
+
     if not _is_local(new):
         external_routes.add(old)
         return
@@ -249,12 +258,12 @@ def parse_go_mod(text: str) -> GoMod:
                     failure = failure or MALFORMED_MODULE_REASON
                 else:
                     replacements.append(replacement)
-            elif block in {"require", "exclude"} and len(line.split()) != 2:
+            elif block in {"require", "exclude"} and len(_tokens(line)) != 2:
                 failure = failure or MALFORMED_MODULE_REASON
             continue
         if line.endswith("("):
             head = line[:-1].strip()
-            parts = head.split()
+            parts = _tokens(head)
             first = parts[0] if parts else ""
             if not first or head != first:
                 # An opener with anything after the directive name is not a
@@ -264,7 +273,7 @@ def parse_go_mod(text: str) -> GoMod:
                 failure = failure or MALFORMED_MODULE_REASON
             block = first
             continue
-        parts = line.split()
+        parts = _tokens(line)
         directive = parts[0]
         if directive == "module":
             if len(parts) != 2 or module_path is not None:
@@ -345,15 +354,43 @@ def _read_go_work(path: Path) -> GoWork:
 
 
 def _use_paths(text: str) -> tuple[str, ...]:
-    return tuple(value for token in text.split() if (value := _unquote(token)) is not None)
+    return tuple(value for token in _tokens(text) if (value := _unquote(token)) is not None)
+
+
+def _tokens(text: str) -> list[str]:
+    """Split one manifest line, keeping a quoted path as one argument."""
+    tokens: list[str] = []
+    index = 0
+    while index < len(text):
+        while index < len(text) and text[index].isspace():
+            index += 1
+        if index >= len(text):
+            break
+        start = index
+        quote = text[index] if text[index] in {'"', "`"} else None
+        if quote is None:
+            while index < len(text) and not text[index].isspace():
+                index += 1
+        else:
+            index += 1
+            while index < len(text):
+                if quote == '"' and text[index] == "\\":
+                    index += 2
+                    continue
+                if text[index] == quote:
+                    index += 1
+                    break
+                index += 1
+        tokens.append(text[start:index])
+    return tokens
 
 
 def _parse_replace(line: str) -> tuple[str, str] | None:
     left, separator, right = line.partition("=>")
     if not separator:
         return None
-    left_parts = left.split()
-    right_parts = right.split()
+    left_parts = _tokens(left)
+    right_parts = _tokens(right)
     if not left_parts or not right_parts or len(left_parts) > 2 or len(right_parts) > 2:
         return None
     old = _unquote(left_parts[0])
