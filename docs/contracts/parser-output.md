@@ -8,7 +8,8 @@ Fan-in, fan-out, blast radius and chains are **not** part of this output. Graph 
 lives in the frontend TypeScript (AGENTS.md rule 4). The parser supplies files and edges.
 
 The top level is language-neutral. A language's own facts live in that language's details
-section; Python uses `python` at the repository, file and coverage levels.
+section; Python uses `python` at the repository, file and coverage levels, and Go uses `go`
+at the same three levels.
 
 ## Top level
 
@@ -16,11 +17,13 @@ section; Python uses `python` at the repository, file and coverage levels.
 |---|---|---|
 | `parser_version` | string | Parser, binding and grammar versions that produced the output. |
 | `python` | Python repository details or null | Import root and the rule that chose it. |
+| `go` | Go repository details or null | Build context and every in-repository module. |
 | `files` | array of file record | Every regular file and symbolic-link record outside a pruned directory, sorted by `path`. |
 | `excluded_directories` | array of `{path, reason}` | Pruned directories, sorted by `path`, with a trailing `/`. An unlistable repository root is `.`. |
 | `edges` | array of edge | Unique connections, sorted. |
 | `symbol_references` | array of symbol record | Imported names that are not modules, recorded per name, sorted. |
 | `star_import_references` | array of star import record | Star imports whose names the parser does not enumerate, sorted. |
+| `cgo_references` | array of cgo record | Go `import "C"` references, each with the cgo status, sorted. |
 | `unresolved_references` | array of reference record | References that failed, each with a named reason, sorted. |
 | `external_references` | array of external record | References outside the repository, named by `top_level`, sorted. |
 | `excluded_references` | array of reference record | References that landed in an excluded directory, sorted. |
@@ -46,7 +49,7 @@ state the same bounds.
 ## File record
 
 `path` is POSIX and relative to the repository root. `folder` is its POSIX parent, `.` at
-the root. `language` is `python` or null. `line_count` is `len(text.splitlines())` for a
+the root. `language` is `python`, `go` or null. `line_count` is `len(text.splitlines())` for a
 `.py` file that decodes. A `.pyi` stub, every other file, and a `.py` that does not decode
 count the raw bytes split into lines.
 
@@ -57,7 +60,10 @@ read, none of which keeps a hash; those files also have a null `line_count`.
 `is_node` is true when the file is part of the graph. `excluded_reason` is null for a node
 and a named reason for an excluded file. `parse_failure` is null or
 `{reason, line, column}`; a node with a parse failure keeps its place but contributes no
-edges. A file whose decoded text cannot be encoded as UTF-8 is a parse failure with reason
+edges. A file-level failure that prevents edges — a syntax or decode failure, conflicting
+package names in one folder, or a module file with an unreadable or malformed directive —
+is recorded here. A module file is not a node but still carries its failure. A file whose
+decoded text cannot be encoded as UTF-8 is a parse failure with reason
 `cannot encode source as UTF-8`. A parse failure with no position, which is a decode or
 encode failure, has null `line` and `column`. `adapter_role` is `fallback` for every file,
 node or excluded.
@@ -81,27 +87,52 @@ is recorded in `excluded_directories` with the same reason. A committed virtual 
 is excluded with reason `virtual environment`; its contents are third-party code and create
 neither nodes nor edges.
 
+`go` is the Go details object, or null:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `package` | string | The package name in the file's package clause. |
+| `module_path` | string or null | The in-repository module that contains the file, or null when none does. |
+| `build_constraints` | array of `{source, expression}` | Every build constraint written for the file. `source` is `build_line` or `filename`; `expression` is the constraint as written. |
+| `is_test` | boolean | True for a file whose name ends in `_test.go`. |
+| `build_constraint_exclusion_reason` | string or null | The named reason when the build constraints exclude the file for the target context, otherwise null. It equals the file's `excluded_reason`. |
+
+A Go node carries non-null `go` details; a Python node carries non-null `python` details.
+A Python node has a null `go` section and a Go node has a null `python` section; the schema
+and the model both enforce this. A Go file excluded by build constraints is not a node but
+still carries its `go` details, so the constraints and their reason stay visible.
+
 ## Edge
 
-An edge exists only when a reference resolves to a real file in the input.
+An edge exists only when a reference resolves to a real file or package folder in the
+input.
 
 | Field | Type | Meaning |
 |---|---|---|
 | `source` | string | File path the edge starts from. |
-| `target` | string | File path it points to. |
-| `kind` | `import` or `dynamic_import` | How the reference was written. |
+| `target` | string | File path or package folder it points to. |
+| `target_kind` | `file` or `package` | Whether `target` names one file or a package folder. |
+| `kind` | `import`, `dynamic_import`, `blank_import` or `dot_import` | How the reference was written. |
 | `condition` | `type_only`, `optional`, `lazy` or null | Guard the import sits under. |
+| `alias` | string or null | The alias written on the import, or null when none is written. |
 | `line`, `column` | integer | One-based start of the import statement or dynamic call. |
 
-`kind` is only `import` or `dynamic_import`, and `condition` is only `type_only`,
-`optional`, `lazy` or null. A guarded import is never a separate kind: an import under
-`if TYPE_CHECKING`, inside a `try` block, or inside a function body keeps `kind: import`
-(or `dynamic_import`) and records how it is guarded only in `condition`. Consumers read
-the kind to know it is an import, and the condition to know when it runs.
+`condition` is only `type_only`, `optional`, `lazy` or null, and it applies to Python
+imports. A guarded import is never a separate kind: an import under `if TYPE_CHECKING`,
+inside a `try` block, or inside a function body keeps `kind: import` (or
+`dynamic_import`) and records how it is guarded only in `condition`. Consumers read the
+kind to know it is an import, and the condition to know when it runs.
 
-Edges are unique by `(source, target, kind, condition)`; when the same connection is
-written more than once, the earliest location is kept. Sorted by
-`(source, target, kind, condition, line, column)`, with null condition first.
+Python edges use `kind: import` or `dynamic_import`, `target_kind: file`, and a null
+`alias` unless the imported name is aliased. Go edges use `kind: import`, `blank_import` or
+`dot_import`, always `target_kind: package`, and `alias` carries a named alias when one is
+written. A blank or dot import's form is in `kind`, so its `alias` is null. An alias is
+never a kind.
+
+Edges are unique by `(source, target, target_kind, kind, condition, alias)`; when the
+same connection is written more than once, the earliest location is kept. Sorted by
+`(source, target, target_kind, kind, condition, alias, line, column)`, with null condition
+and null alias first.
 
 An explicit import always draws its edge, including an import that names the file's own
 package or module. A relative import's base that names the file's own package or an
@@ -142,6 +173,19 @@ A star import of an external module writes only the external record. A star impo
 whose base fails or lands in an excluded file or directory writes only that outcome.
 No names are invented in any case.
 
+## cgo records
+
+The Go import path `C` is the cgo pseudo-package. It is not a package, an edge, an
+external reference or a failure. It is one reference with the exact status
+`cgo pseudo-package`, counted in `cgo`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `source` | string | Importing file. |
+| `reference` | string | Exactly `C`. |
+| `status` | string | Exactly `cgo pseudo-package`. |
+| `line`, `column` | integer | One-based start of the import statement. |
+
 ## Reference records
 
 `reference` is the module expression as written, or the call text for a dynamic import
@@ -169,9 +213,125 @@ package argument is unresolved with reason `non-literal dynamic import package`.
 relative to the file's package; a negative literal `level` is unresolved with reason
 `negative __import__ level`.
 
+## Go resolution
+
+A Go package is the set of files in one folder with the same package name. An external
+test package in the same folder is a separate package. A Go edge always names the package
+folder, never one file, because the source does not say which file in the package is used.
+`target` is the folder's POSIX path relative to the repository root, `.` at the root, and
+`target_kind` is `package`.
+
+`go` at the top level carries `build_context` (`{os, arch}`, the context build constraints
+were evaluated against) and `modules`, every module found inside the repository. Each
+module records its `module_path`, its `folder`, and the `source` that declared it:
+`module_file`, `workspace` or `replace`. `module_file` is used for every folder that holds
+a module file, including a nested module that no workspace file names and a folder that a
+local replacement also reaches. `replace` is used only for a local replacement target that
+has no module file of its own. `workspace` is used for a module named by `go.work` unless a
+local replacement also reaches that folder and it has its own module file. A module file
+inside a folder the Go tool ignores, or inside `vendor` or `testdata`, is not a repository
+module. Every in-repository module is checked, not only the main one. A file belongs to the
+nearest module above it, so a nested module's files are never attributed to its parent. A
+module file with a failure contributes no module entry, even when its path line was
+readable; its path is not used to resolve a package. It names only the imports that
+depend on the failed module.
+
+A replacement to a local folder inside the repository makes that folder a module. A
+replacement to a version is third-party and its imports are external. A replacement to a
+local folder outside the repository fails each import that uses it with reason
+`replacement target is outside the repository`; a replacement to a local path that does
+not exist fails each import that uses it with reason `replacement target does not exist`.
+A replacement to a local folder whose module file declares another module path fails each
+import that uses the replaced path with reason
+`replacement target declares a different module path`.
+Replace directives in `go.mod` and `go.work` are read. The target is never guessed or
+created.
+
+A module file with an unreadable or malformed directive carries the failure on its own
+file record. An import depends on that module when its path equals the module path or
+continues from it after a `/`; each such import is unresolved with the same reason.
+Imports outside every module stay external, including imports from files in the module's
+folder. A module file with no readable path fails every import from its files, because
+internal and external paths cannot be told apart without it. The failure reason is
+`malformed module file` for invalid syntax, or the file record's own exclusion reason
+when the file could not be read.
+The module path is not guessed. `go.mod` and `go.work` are file records with null language,
+not nodes, excluded with reason `not a Go file`. Folders beginning `_` or `.` are excluded
+with reason `ignored by the Go tool`; `vendor` and `testdata` are excluded as stated below.
+
+A Go file the grammar cannot read keeps its named or generic syntax reason on its file
+record and draws no edges. Each readable import path in that file is counted once. When
+the path points inside a repository module, it is unresolved with reason
+`file has a syntax error`, at the import's own position. When it points outside every
+module, it stays external. A path the grammar could not read keeps its own reason and is
+never guessed. An import spec that holds more than one path keeps the first path as an
+ordinary import and records each later path as a failed reference with reason
+`malformed import spec`, at that path's own position. A replacement, module,
+trailing-slash or empty-path failure keeps its own reason; `file has a syntax error`
+applies when the readable path points inside a repository module, before the target
+folder is resolved.
+
+An import path is inside a module only when it equals the module path or continues after a
+`/`. With the module `example.com/app`, `example.com/app/pkg` is inside and
+`example.com/app-tools/pkg` is external. When the repository has at least one module, an
+import outside every in-repository module is external, with the first path segment in
+`top_level`; it is not a failure. When the repository has no module file, every import is
+unresolved with reason `no module file declares a path`, not external. An import inside a
+module whose folder does not exist is unresolved with reason `package folder not found in
+repository`. When the folder exists but every file in it is excluded by build constraints,
+the reference is excluded with that build-constraint reason, not reported as missing. A
+folder that exists but has only test files has no importable package and is unresolved with
+reason `package folder has no importable package`. A Go file with no package clause keeps
+its node with `package: ""`; it is not importable, and it is not counted in `packages`.
+An import whose target folder has only non-test
+`package main` files is unresolved with reason `imports a main package`. An import
+path ending in `/` is unresolved with reason `import path ends with a slash`. An empty
+import path is unresolved with reason `import path is empty`. An import spec without a
+readable literal path is unresolved with reason `import path is not a literal string` or
+`import spec has no path`, even when the file itself fails to parse.
+
+A single Go import declaration reports the declaration's start. Each spec in a grouped
+import reports its own start.
+
+Build constraints come from `//go:build` and `// +build` lines and from filename suffixes.
+They are recorded per file as written. A filename suffix is a constraint only when a
+non-empty prefix precedes the first underscore: `js.go` and `js_test.go` are plain files,
+while `windows_amd64.go` carries only the amd64 suffix. A filename suffix carrying both
+GOOS and GOARCH is recorded as two filename constraints, one for each term. The target sets
+`linux`, `amd64`, `unix` and `gc` true; `cgo` and `go1.N` release tags are false. A file
+that the target context excludes is an excluded file with reason `build constraint excludes
+file for <os>/<arch>`; its `go` details repeat that reason and it is never treated as
+missing. Test files (`_test.go`) are nodes
+with `is_test: true`, and they produce outgoing edges only. Production code never gets an
+edge into a test file: a package target resolves only when the folder has at least one
+non-test Go file of that package. A blank import (`_ "path"`) is `blank_import`, a dot
+import is `dot_import`, and a named alias is recorded in `alias`. An import path exactly
+`C` is the cgo pseudo-package: it writes one cgo record and no edge, external reference or
+failure.
+
+A folder whose non-test files name more than one package, other than a `_test` package,
+is conflicting. Each conflicting non-test file keeps its node. A conflicting file that
+already has a syntax error keeps the syntax reason; every other conflicting non-test file
+carries a `parse_failure` with reason `conflicting package names in one folder`, `line` and
+`column` null. All conflicting files contribute no edges. A readable import in a
+conflicting file that points inside the repository is unresolved with the conflict reason
+and counted once; one that points outside stays external; `C` keeps its cgo outcome. An
+import whose target folder is conflicting is unresolved with the same reason.
+
+`vendor` and `testdata` folders are pruned whole, with reasons `vendored dependency` and
+`test data`. They create no file records, no nodes and no edges.
+
+Go coverage counts every import path the parser sees as one reference, including a
+readable path in a file that fails to parse. A resolved package is `resolved`; an import
+outside every module in a repository that has modules is `external`; an import that lands
+in a pruned directory or an excluded file is `excluded`; a named failure is `failed`; the
+cgo pseudo-package is `cgo`. Go has no symbol imports or
+star imports, so `symbols` and `star_imports` stay 0. The cgo category is its own outcome
+and is included in the denominator.
+
 ## Coverage
 
-`references` is the denominator: `resolved + symbols + star_imports + external + excluded + failed`.
+`references` is the denominator: `resolved + symbols + star_imports + cgo + external + excluded + failed`.
 
 `symbols` is the number of symbol records; each record is the evidence for one entry.
 For `from X import name`, when `X` resolves inside the repository and `name` names no
@@ -181,11 +341,20 @@ module there, `name` is a symbol of `X`. It is not an edge and not a failure.
 entry. A star import is one reference: it is counted here and not again in `resolved`,
 even when its base is a file and draws an edge. It is not a symbol and not a failure.
 
+`cgo` is the number of cgo records; each record is the evidence for one entry. It is one
+reference, counted here and not again in `resolved`, `external` or `failed`.
+
 `python` is the Python coverage object, or null:
 
 | Field | Type | Meaning |
 |---|---|---|
 | `namespace_packages` | integer | Non-root folders under the import root with no `__init__` file and at least one Python module beneath them. |
+
+`go` is the Go coverage object, or null:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `packages` | integer | Distinct (folder, package name) pairs among Go nodes, including test packages. A node with no package name is not counted. |
 
 `failures_by_reason` is a sorted object of reason to count. `failure_examples` holds the
 first five unresolved records in sorted order; the full list is in
@@ -198,7 +367,8 @@ sorted object of reason to count.
 
 Every list is sorted. Files by `path`; excluded directories by `path`; edges as above;
 symbol references by `(source, line, column, module, name)`; star import references by
-`(source, line, column, module)`; unresolved and excluded references by
+`(source, line, column, module)`; cgo references by `(source, line, column, reference)`;
+unresolved and excluded references by
 `(source, line, column, reference)`; external references by
 `(source, line, column, reference, top_level)`.
 

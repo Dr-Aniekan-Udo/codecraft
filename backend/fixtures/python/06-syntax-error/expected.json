@@ -4,6 +4,7 @@
     "import_root": ".",
     "import_root_rule": "repository root"
   },
+  "go": null,
   "files": [
     {
       "path": "broken.py",
@@ -23,7 +24,8 @@
         "module": "broken",
         "package_kind": null,
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "consumer.py",
@@ -39,7 +41,8 @@
         "module": "consumer",
         "package_kind": null,
         "is_package": false
-      }
+      },
+      "go": null
     }
   ],
   "excluded_directories": [],
@@ -47,14 +50,17 @@
     {
       "source": "consumer.py",
       "target": "broken.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": null,
+      "alias": null,
       "line": 1,
       "column": 1
     }
   ],
   "symbol_references": [],
   "star_import_references": [],
+  "cgo_references": [],
   "unresolved_references": [],
   "external_references": [],
   "excluded_references": [],
@@ -63,12 +69,14 @@
     "resolved": 1,
     "symbols": 0,
     "star_imports": 0,
+    "cgo": 0,
     "external": 0,
     "excluded": 0,
     "failed": 0,
     "python": {
       "namespace_packages": 0
     },
+    "go": null,
     "failures_by_reason": {},
     "failure_examples": []
   },

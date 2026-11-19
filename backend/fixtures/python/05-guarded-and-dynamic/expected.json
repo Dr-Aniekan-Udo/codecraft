@@ -4,6 +4,7 @@
     "import_root": ".",
     "import_root_rule": "repository root"
   },
+  "go": null,
   "files": [
     {
       "path": "annotations_only.py",
@@ -19,7 +20,8 @@
         "module": "annotations_only",
         "package_kind": null,
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "dynamic_module.py",
@@ -35,7 +37,8 @@
         "module": "dynamic_module",
         "package_kind": null,
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "guarded.py",
@@ -51,7 +54,8 @@
         "module": "guarded",
         "package_kind": null,
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "safe_module.py",
@@ -67,7 +71,8 @@
         "module": "safe_module",
         "package_kind": null,
         "is_package": false
-      }
+      },
+      "go": null
     }
   ],
   "excluded_directories": [],
@@ -75,24 +80,30 @@
     {
       "source": "guarded.py",
       "target": "annotations_only.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": "type_only",
+      "alias": null,
       "line": 10,
       "column": 5
     },
     {
       "source": "guarded.py",
       "target": "dynamic_module.py",
+      "target_kind": "file",
       "kind": "dynamic_import",
       "condition": null,
+      "alias": null,
       "line": 12,
       "column": 1
     },
     {
       "source": "guarded.py",
       "target": "safe_module.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": "optional",
+      "alias": null,
       "line": 5,
       "column": 5
     }
@@ -108,6 +119,7 @@
     }
   ],
   "star_import_references": [],
+  "cgo_references": [],
   "unresolved_references": [
     {
       "source": "guarded.py",
@@ -139,12 +151,14 @@
     "resolved": 3,
     "symbols": 1,
     "star_imports": 0,
+    "cgo": 0,
     "external": 2,
     "excluded": 0,
     "failed": 1,
     "python": {
       "namespace_packages": 0
     },
+    "go": null,
     "failures_by_reason": {
       "non-literal dynamic import": 1
     },

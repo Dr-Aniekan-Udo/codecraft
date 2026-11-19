@@ -4,6 +4,7 @@
     "import_root": ".",
     "import_root_rule": "repository root"
   },
+  "go": null,
   "files": [
     {
       "path": "relpkg/__init__.py",
@@ -19,7 +20,8 @@
         "module": "relpkg",
         "package_kind": "regular",
         "is_package": true
-      }
+      },
+      "go": null
     },
     {
       "path": "relpkg/app.py",
@@ -35,7 +37,8 @@
         "module": "relpkg.app",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "relpkg/beyond.py",
@@ -51,7 +54,8 @@
         "module": "relpkg.beyond",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "relpkg/helper.py",
@@ -67,7 +71,8 @@
         "module": "relpkg.helper",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "relpkg/sub/__init__.py",
@@ -83,7 +88,8 @@
         "module": "relpkg.sub",
         "package_kind": "regular",
         "is_package": true
-      }
+      },
+      "go": null
     },
     {
       "path": "relpkg/sub/deep.py",
@@ -99,7 +105,8 @@
         "module": "relpkg.sub.deep",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "relpkg/sub/other.py",
@@ -115,7 +122,8 @@
         "module": "relpkg.sub.other",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     }
   ],
   "excluded_directories": [],
@@ -123,30 +131,37 @@
     {
       "source": "relpkg/app.py",
       "target": "relpkg/helper.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": null,
+      "alias": null,
       "line": 1,
       "column": 1
     },
     {
       "source": "relpkg/sub/deep.py",
       "target": "relpkg/helper.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": null,
+      "alias": null,
       "line": 1,
       "column": 1
     },
     {
       "source": "relpkg/sub/other.py",
       "target": "relpkg/sub/deep.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": null,
+      "alias": null,
       "line": 1,
       "column": 1
     }
   ],
   "symbol_references": [],
   "star_import_references": [],
+  "cgo_references": [],
   "unresolved_references": [
     {
       "source": "relpkg/beyond.py",
@@ -163,12 +178,14 @@
     "resolved": 6,
     "symbols": 0,
     "star_imports": 0,
+    "cgo": 0,
     "external": 0,
     "excluded": 0,
     "failed": 1,
     "python": {
       "namespace_packages": 0
     },
+    "go": null,
     "failures_by_reason": {
       "relative import climbs above the top-level package": 1
     },
