@@ -415,6 +415,22 @@ def test_an_ignored_go_file_contributes_no_imports(tmp_path: Path) -> None:
     assert model.external_references == []
 
 
+@pytest.mark.parametrize("expression", ["linux & amd64", "linux | amd64"])
+def test_a_bare_boolean_operator_is_a_malformed_constraint(tmp_path: Path, expression: str) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": "module example.com/app\n\ngo 1.22\n",
+            "main.go": f"//go:build {expression}\n\npackage main\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    main_file = next(record for record in model.files if record.path == "main.go")
+    assert main_file.is_node is False
+    assert main_file.excluded_reason == "malformed build constraint"
+
+
 def test_a_non_go_dotfile_keeps_the_not_a_go_file_reason(tmp_path: Path) -> None:
     repo = _repo(
         tmp_path,
@@ -444,6 +460,63 @@ def test_a_quoted_workspace_use_path_with_spaces_is_read(tmp_path: Path) -> None
     assert model.go is not None
     module = next(module for module in model.go.modules if module.folder == "app dir")
     assert module.source.value == "workspace"
+
+
+def test_a_local_replacement_beats_another_module_with_the_same_path(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": ("module example.com/app\n\ngo 1.22\n\nreplace example.com/dep => ./lib\n"),
+            "main.go": 'package main\n\nimport "example.com/dep/pkg"\n',
+            "aaa/go.mod": "module example.com/dep\n\ngo 1.22\n",
+            "lib/pkg/pkg.go": "package pkg\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    assert [(edge.source, edge.target) for edge in model.edges] == [("main.go", "lib/pkg")]
+
+
+def test_a_trailing_slash_under_a_failed_module_keeps_the_module_reason(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": "module example.com/app\nrequire (\n    example.com/dep v1.2.3\n",
+            "main.go": 'package main\n\nimport "example.com/app/pkg/"\n',
+            "pkg/pkg.go": "package pkg\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    assert [(record.reference, record.reason) for record in model.unresolved_references] == [
+        ("example.com/app/pkg/", "malformed module file")
+    ]
+    assert model.edges == []
+
+
+def test_a_version_replacement_beats_a_module_with_the_same_path(tmp_path: Path) -> None:
+    repo = _repo(
+        tmp_path,
+        {
+            "go.mod": (
+                "module example.com/app\n\ngo 1.22\n\n"
+                "replace example.com/dep => example.com/dep v1.2.3\n"
+            ),
+            "main.go": 'package main\n\nimport "example.com/dep/pkg"\n',
+            "lib/go.mod": "module example.com/dep\n\ngo 1.22\n",
+            "lib/pkg/pkg.go": "package pkg\n",
+        },
+    )
+    model = parse_repository(repo, "go")
+
+    assert [(record.reference, record.top_level) for record in model.external_references] == [
+        ("example.com/dep/pkg", "example.com")
+    ]
+    assert model.edges == []
 
 
 def test_a_workspace_replacement_overrides_an_external_route(tmp_path: Path) -> None:

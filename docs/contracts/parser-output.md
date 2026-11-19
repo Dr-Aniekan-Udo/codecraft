@@ -256,7 +256,12 @@ a longer, healthy module path also matches the import. Imports outside every mod
 external, including imports from files in the module's folder. A module file with no readable path fails every import from its files, because
 internal and external paths cannot be told apart without it. The failure reason is
 `malformed module file` for invalid syntax, or the file record's own exclusion reason
-when the file could not be read.
+when the file could not be read. Where a failed route and an external route both match,
+the longer path decides. Where a replacement and a module share a path, the replacement's
+outcome decides: a missing local target fails with its reason, a successful local target
+resolves to its folder, and a version replacement stays external. A failed module route
+is checked before invalid-path reasons. A target inside a folder that holds a failed module
+file is unresolved with that module's failure reason.
 The module path is not guessed. `go.mod` and `go.work` are file records with null language,
 not nodes, excluded with reason `not a Go file`. Folders beginning `_` or `.` are excluded
 with reason `ignored by the Go tool`; `vendor` and `testdata` are excluded as stated below.
@@ -299,9 +304,10 @@ import reports its own start.
 
 Build constraints come from `//go:build` and `// +build` lines and from filename suffixes.
 They are recorded per file as written. A `//go:build` line decides exclusion when present;
-legacy `// +build` lines remain metadata only. An expression nested beyond the reader's
-depth is an excluded file with reason `malformed build constraint`; its `go` details repeat
-that reason. A filename suffix is a constraint only when a non-empty prefix precedes the
+legacy `// +build` lines remain metadata only. An expression with a character outside
+whitespace, letters, digits, `_`, `.`, parentheses, comma, `!`, `&&` or `||`, or one nested
+beyond the reader's depth, is an excluded file with reason `malformed build constraint`;
+its `go` details repeat that reason. A filename suffix is a constraint only when a non-empty prefix precedes the
 first underscore: `js.go` and `js_test.go` are plain files, while `windows_amd64.go`
 carries only the amd64 suffix. A filename suffix carrying both GOOS and GOARCH is recorded
 as two filename constraints, one for each term. The target sets `linux`, `amd64`, `unix`

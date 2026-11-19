@@ -58,6 +58,10 @@ _GO_FIXTURE_NAMES = (
     "37-non-test-helper-test",
     "38-malformed-root-nested-tools",
     "39-nested-module-ownership",
+    "40-unrecognised-build-character",
+    "41-replacement-over-module",
+    "42-longer-external-route",
+    "43-failed-nested-module-boundary",
 )
 
 

@@ -234,9 +234,14 @@ def _resolve(
         )
         return
 
-    module_failure = _failed_module_reason(source.path, raw.reference, discovery)
+    module_failure = _failed_module_reason(source.path, discovery)
     if module_failure is not None:
         _fail(outcome, source, raw, module_failure)
+        return
+
+    winning_failure = _winning_failure_before_invalid(raw.reference, discovery)
+    if winning_failure is not None:
+        _fail(outcome, source, raw, winning_failure)
         return
 
     if not discovery.has_module_file:
@@ -251,22 +256,30 @@ def _resolve(
         _fail(outcome, source, raw, _EMPTY_IMPORT_PATH_REASON)
         return
 
-    module = _module_for(raw.reference, discovery.modules)
+    module = _module_for(raw.reference, discovery.modules, discovery.replacement_folders)
     failure_route = _route_match(raw.reference, discovery.failures)
-    if failure_route is not None and (
-        module is None or len(failure_route[0]) > len(module.module_path)
-    ):
-        _fail(outcome, source, raw, failure_route[1])
-        return
-
     external_route = _longest_route(raw.reference, discovery.external_routes)
-    if external_route is not None and (
-        module is None or len(external_route) > len(module.module_path)
-    ):
+    route_kind: str | None = None
+    route_reason: str | None = None
+    route_length = -1
+    if failure_route is not None:
+        route_kind = "failure"
+        route_reason = failure_route[1]
+        route_length = len(failure_route[0])
+    if external_route is not None and len(external_route) > route_length:
+        route_kind = "external"
+        route_reason = None
+        route_length = len(external_route)
+
+    if module is not None and len(module.module_path) > route_length:
+        pass
+    elif route_kind == "failure":
+        _fail(outcome, source, raw, route_reason or "replacement target does not exist")
+        return
+    elif route_kind == "external":
         _external(outcome, source, raw)
         return
-
-    if module is None:
+    elif module is None:
         # An outside path stays external; whether the importing file parses
         # does not change whether its package is external.
         _external(outcome, source, raw)
@@ -278,6 +291,10 @@ def _resolve(
 
     target = _target_folder(module, raw.reference)
     owner = _module_at_folder(target, discovery.modules)
+    failed_folder = _failed_folder_at(target, discovery)
+    if failed_folder is not None and (owner is None or len(owner.folder) <= len(failed_folder)):
+        _fail(outcome, source, raw, discovery.folder_failures[failed_folder])
+        return
     if owner is not None and owner.module_path != module.module_path:
         _fail(outcome, source, raw, _OTHER_MODULE_REASON)
         return
@@ -354,9 +371,24 @@ def _longest_route(path: str, routes: frozenset[str]) -> str | None:
     return max(matches, key=len) if matches else None
 
 
+def _winning_failure_before_invalid(
+    path: str,
+    discovery: ModuleDiscovery,
+) -> str | None:
+    failure = _route_match(path, discovery.failures)
+    if failure is None:
+        return None
+    external = _longest_route(path, discovery.external_routes)
+    if external is not None and len(external) > len(failure[0]):
+        return None
+    module = _module_for(path, discovery.modules, discovery.replacement_folders)
+    if module is not None and len(module.module_path) > len(failure[0]):
+        return None
+    return failure[1]
+
+
 def _failed_module_reason(
     path: str,
-    import_path: str,
     discovery: ModuleDiscovery,
 ) -> str | None:
     folders = set(discovery.module_folders) | {module.folder for module in discovery.modules}
@@ -374,7 +406,11 @@ def _failed_module_reason(
     return None
 
 
-def _module_for(path: str, modules: tuple[GoModule, ...]) -> GoModule | None:
+def _module_for(
+    path: str,
+    modules: tuple[GoModule, ...],
+    replacement_folders: frozenset[str],
+) -> GoModule | None:
     matches = [
         module
         for module in modules
@@ -382,7 +418,23 @@ def _module_for(path: str, modules: tuple[GoModule, ...]) -> GoModule | None:
     ]
     if not matches:
         return None
-    return max(matches, key=lambda module: len(module.module_path))
+    return max(
+        matches,
+        key=lambda module: (
+            len(module.module_path),
+            module.folder in replacement_folders,
+            module.module_path,
+        ),
+    )
+
+
+def _failed_folder_at(folder: str, discovery: ModuleDiscovery) -> str | None:
+    matches = [
+        failed
+        for failed in discovery.failed_module_folders
+        if failed == "." or folder == failed or folder.startswith(f"{failed}/")
+    ]
+    return max(matches, key=len) if matches else None
 
 
 def _module_at_folder(folder: str, modules: tuple[GoModule, ...]) -> GoModule | None:

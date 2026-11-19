@@ -61,6 +61,7 @@ _GOARCH = frozenset(
 # that would prove it true.
 _TARGET_TAGS = frozenset({TARGET_OS, TARGET_ARCH, "unix", "gc"})
 _TOKEN = re.compile(r"&&|\|\||!|\(|\)|[A-Za-z0-9_.]+")
+_UNRECOGNISED = re.compile(r"[^A-Za-z0-9_.!(),\s]")
 
 _GO_BUILD_PREFIX = "//go:build "
 _LEGACY_BUILD_PREFIX = "// +build "
@@ -205,9 +206,10 @@ class _Expression:
     def __init__(self, text: str) -> None:
         self._tokens = _TOKEN.findall(text)
         self._position = 0
-        self._valid = True
+        operators_removed = text.replace("&&", "").replace("||", "")
+        self._valid = not _UNRECOGNISED.search(operators_removed)
         self._depth = 0
-        self.malformed = False
+        self.malformed = not self._valid
 
     def evaluate(self) -> bool:
         if not self._tokens:
