@@ -35,7 +35,7 @@ _FIXTURE_NAMES = (
     "06-syntax-error",
     "07-strings-and-comments",
     "08-symbol-import",
-    "48-readable-imports-in-failed-file",
+    "09-readable-imports-in-failed-file",
 )
 
 
