@@ -12,12 +12,22 @@ from typing import Protocol, cast
 import pytest
 from codecraft_core import (
     AdapterRole,
+    CgoReference,
+    CgoStatus,
     Coverage,
     Edge,
     EdgeKind,
     ExternalReference,
     FileCoverage,
     FileRecord,
+    GoBuildConstraint,
+    GoBuildContext,
+    GoConstraintSource,
+    GoCoverageDetails,
+    GoFileDetails,
+    GoModule,
+    GoModuleSource,
+    GoRepositoryDetails,
     ImportCondition,
     Language,
     PackageKind,
@@ -31,6 +41,7 @@ from codecraft_core import (
     StarImportStatus,
     SymbolRecord,
     SymbolStatus,
+    TargetKind,
 )
 from codecraft_parsing import parse_repository
 from jsonschema import Draft202012Validator  # pyright: ignore[reportMissingTypeStubs]
@@ -126,6 +137,7 @@ def test_the_schema_lists_every_field_the_model_emits() -> None:
         == set(StarImportRecord.model_fields)
         == required("star_import_record")
     )
+    assert fields("cgo_reference") == set(CgoReference.model_fields) == required("cgo_reference")
     assert (
         fields("python_file_details")
         == set(PythonFileDetails.model_fields)
@@ -140,6 +152,30 @@ def test_the_schema_lists_every_field_the_model_emits() -> None:
         fields("python_repository_details")
         == set(PythonRepositoryDetails.model_fields)
         == required("python_repository_details")
+    )
+    assert (
+        fields("go_build_constraint")
+        == set(GoBuildConstraint.model_fields)
+        == required("go_build_constraint")
+    )
+    assert (
+        fields("go_file_details") == set(GoFileDetails.model_fields) == required("go_file_details")
+    )
+    assert (
+        fields("go_build_context")
+        == set(GoBuildContext.model_fields)
+        == required("go_build_context")
+    )
+    assert fields("go_module") == set(GoModule.model_fields) == required("go_module")
+    assert (
+        fields("go_repository_details")
+        == set(GoRepositoryDetails.model_fields)
+        == required("go_repository_details")
+    )
+    assert (
+        fields("go_coverage_details")
+        == set(GoCoverageDetails.model_fields)
+        == required("go_coverage_details")
     )
     root_properties = cast("Mapping[str, object]", schema["properties"])
     root_required = cast("list[object]", schema["required"])
@@ -171,13 +207,17 @@ def test_the_schema_enums_match_the_models() -> None:
         None,
     }
     assert enum("edge", "kind") == {value.value for value in EdgeKind}
+    assert enum("edge", "target_kind") == {value.value for value in TargetKind}
     assert enum("edge", "condition") == {
         *(value.value for value in ImportCondition),
         None,
     }
     assert enum("symbol_record", "status") == {value.value for value in SymbolStatus}
     assert enum("star_import_record", "status") == {value.value for value in StarImportStatus}
+    assert enum("cgo_reference", "status") == {value.value for value in CgoStatus}
     assert enum("file_record", "adapter_role") == {value.value for value in AdapterRole}
+    assert enum("go_build_constraint", "source") == {value.value for value in GoConstraintSource}
+    assert enum("go_module", "source") == {value.value for value in GoModuleSource}
 
 
 def test_the_validator_rejects_broken_documents() -> None:
@@ -214,6 +254,7 @@ _POSITIONED_RECORDS: tuple[tuple[str, PositionedFactory], ...] = (
         lambda line, column: Edge(
             source="a.py",
             target="b.py",
+            target_kind=TargetKind.FILE,
             kind=EdgeKind.IMPORT,
             condition=None,
             line=line,
@@ -237,6 +278,16 @@ _POSITIONED_RECORDS: tuple[tuple[str, PositionedFactory], ...] = (
             source="a.py",
             module="m",
             status=StarImportStatus.NAMES_NOT_ENUMERATED,
+            line=line,
+            column=column,
+        ),
+    ),
+    (
+        "cgo_reference",
+        lambda line, column: CgoReference(
+            source="a.go",
+            reference="C",
+            status=CgoStatus.CGO_PSEUDO_PACKAGE,
             line=line,
             column=column,
         ),
@@ -297,6 +348,7 @@ _COVERAGE_COUNTS = (
     "resolved",
     "symbols",
     "star_imports",
+    "cgo",
     "external",
     "excluded",
     "failed",
@@ -307,6 +359,7 @@ _FILE_COVERAGE_COUNTS = ("found", "parsed", "failed_parse", "excluded")
 def _coverage_document() -> dict[str, object]:
     values: dict[str, object] = {name: 0 for name in _COVERAGE_COUNTS}
     values["python"] = None
+    values["go"] = None
     values["failures_by_reason"] = {}
     values["failure_examples"] = []
     return values
@@ -370,6 +423,102 @@ def _file_record(line_count: int = 1, content_hash: str | None = _VALID_HASH) ->
         adapter_role=AdapterRole.FALLBACK,
         python=PythonFileDetails(module="a", package_kind=None, is_package=False),
     )
+
+
+def _go_file_details() -> GoFileDetails:
+    return GoFileDetails(
+        package="app",
+        module_path="example.com/app",
+        build_constraints=(
+            GoBuildConstraint(
+                source=GoConstraintSource.FILENAME,
+                expression="linux",
+            ),
+        ),
+        is_test=False,
+        build_constraint_exclusion_reason=None,
+    )
+
+
+def _go_file_record() -> FileRecord:
+    return FileRecord(
+        path="app/main.go",
+        folder="app",
+        language=Language.GO,
+        line_count=1,
+        content_hash=_VALID_HASH,
+        is_node=True,
+        excluded_reason=None,
+        parse_failure=None,
+        adapter_role=AdapterRole.FALLBACK,
+        python=None,
+        go=_go_file_details(),
+    )
+
+
+def test_a_python_node_without_python_details_is_rejected() -> None:
+    schema = _schema_for("file_record")
+    document = cast("dict[str, object]", _file_record().model_dump(mode="json"))
+    document["python"] = None
+
+    assert _schema_errors(document, schema) != []
+    with pytest.raises(ValidationError):
+        FileRecord.model_validate(document)
+
+
+def test_a_go_node_with_a_python_section_is_rejected() -> None:
+    schema = _schema_for("file_record")
+    document = cast("dict[str, object]", _go_file_record().model_dump(mode="json"))
+    python_details = cast("Mapping[str, object]", _file_record().model_dump(mode="json")["python"])
+    document["python"] = python_details
+
+    assert _schema_errors(document, schema) != []
+    with pytest.raises(ValidationError):
+        FileRecord.model_validate(document)
+
+
+def test_a_python_node_with_a_go_section_is_rejected() -> None:
+    schema = _schema_for("file_record")
+    document = cast("dict[str, object]", _file_record().model_dump(mode="json"))
+    document["go"] = _go_file_details().model_dump(mode="json")
+
+    assert _schema_errors(document, schema) != []
+    with pytest.raises(ValidationError):
+        FileRecord.model_validate(document)
+
+
+@pytest.mark.parametrize("path", ["go.mod", "go.work"])
+def test_a_go_manifest_is_accepted_with_no_language_details(path: str) -> None:
+    schema = _schema_for("file_record")
+    record = FileRecord(
+        path=path,
+        folder=".",
+        language=None,
+        line_count=1,
+        content_hash=_VALID_HASH,
+        is_node=False,
+        excluded_reason="not a Go file",
+        parse_failure=None,
+        adapter_role=AdapterRole.FALLBACK,
+        python=None,
+        go=None,
+    )
+    document = cast("dict[str, object]", record.model_dump(mode="json"))
+
+    assert _schema_errors(document, schema) == []
+
+
+def test_an_extra_top_level_field_is_rejected_by_the_schema() -> None:
+    schema = _load_schema()
+    document = cast(
+        "dict[str, object]",
+        json.loads((_FIXTURES / _FIXTURE_NAMES[0] / "expected.json").read_text(encoding="utf-8")),
+    )
+    document["file_count"] = len(cast("list[object]", document["files"]))
+
+    assert _schema_errors(document, schema) != []
+    with pytest.raises(ValidationError):
+        RepositoryParse.model_validate(document)
 
 
 def test_a_negative_line_count_is_rejected_by_the_model_and_the_schema() -> None:

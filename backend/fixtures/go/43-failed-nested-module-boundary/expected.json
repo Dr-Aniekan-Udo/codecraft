@@ -1,0 +1,138 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language go; tree-sitter 0.26.0; tree-sitter-go 0.25.0)",
+  "python": null,
+  "go": {
+    "build_context": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "modules": [
+      {
+        "module_path": "example.com/app",
+        "folder": ".",
+        "source": "module_file"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "go.mod",
+      "folder": ".",
+      "language": null,
+      "line_count": 3,
+      "content_hash": "sha256:6e9542b178eb0958fa47e7eb9be69c5dceaddb0bd16f51ed3e03b8d2a526842a",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "main.go",
+      "folder": ".",
+      "language": "go",
+      "line_count": 3,
+      "content_hash": "sha256:8af4c4e301d2ea5637f9ca20b828e595b497dc022a96e8b25104e87faeb69c38",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "main",
+        "module_path": "example.com/app",
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    },
+    {
+      "path": "nested/go.mod",
+      "folder": "nested",
+      "language": null,
+      "line_count": 4,
+      "content_hash": "sha256:fc09d73fa451660e70f7ebed8c3bf6e3b22ded57a2a8b26957459d256031e96b",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": {
+        "reason": "malformed module file",
+        "line": null,
+        "column": null
+      },
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "nested/pkg/pkg.go",
+      "folder": "nested/pkg",
+      "language": "go",
+      "line_count": 1,
+      "content_hash": "sha256:a7b92614d2024fe2c230fc2384eb004c430483cd4ce7c7c12aeed66e69342a07",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "pkg",
+        "module_path": null,
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "main.go",
+      "reference": "example.com/app/nested/pkg",
+      "reason": "malformed module file",
+      "line": 3,
+      "column": 1
+    }
+  ],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 1,
+    "resolved": 0,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 1,
+    "python": null,
+    "go": {
+      "packages": 2
+    },
+    "failures_by_reason": {
+      "malformed module file": 1
+    },
+    "failure_examples": [
+      {
+        "source": "main.go",
+        "reference": "example.com/app/nested/pkg",
+        "reason": "malformed module file",
+        "line": 3,
+        "column": 1
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 4,
+    "parsed": 2,
+    "failed_parse": 0,
+    "excluded": 2,
+    "excluded_by_reason": {
+      "not a Go file": 2
+    }
+  }
+}

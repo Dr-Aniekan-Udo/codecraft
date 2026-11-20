@@ -90,8 +90,16 @@ def read_within_limit(path: Path, limit: int) -> bytes | None:
     return data if len(data) <= limit else None
 
 
-def walk_repository(root: Path, classify: Callable[[str], FileClassification]) -> WalkResult:
-    """Walk ``root`` in path order, applying the shared exclusions and limits."""
+def walk_repository(
+    root: Path,
+    classify: Callable[[str], FileClassification],
+    directory_reason: Callable[[str, Path], str | None] | None = None,
+) -> WalkResult:
+    """Walk ``root`` in path order, applying the shared exclusions and limits.
+
+    ``directory_reason`` lets a language parser prune its own directories while
+    the walk is happening, so their files are never read or recorded.
+    """
     file_paths: list[str] = []
     directories: list[str] = []
     excluded_directories: list[ExcludedDirectory] = []
@@ -128,6 +136,8 @@ def walk_repository(root: Path, classify: Callable[[str], FileClassification]) -
                 )
                 continue
             reason = directory_exclusion_reason(name, candidate)
+            if reason is None and directory_reason is not None:
+                reason = directory_reason(name, candidate)
             if reason is None:
                 kept.append(name)
                 directories.append(relative)

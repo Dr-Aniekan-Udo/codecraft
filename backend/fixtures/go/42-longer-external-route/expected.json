@@ -1,0 +1,110 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language go; tree-sitter 0.26.0; tree-sitter-go 0.25.0)",
+  "python": null,
+  "go": {
+    "build_context": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "modules": [
+      {
+        "module_path": "example.com/app",
+        "folder": ".",
+        "source": "module_file"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "go.mod",
+      "folder": ".",
+      "language": null,
+      "line_count": 6,
+      "content_hash": "sha256:d1b79abc7f6cfeab3afeebb00be27a6dd1623fe88ec85bfcfb7a4c8733e53c7f",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "main.go",
+      "folder": ".",
+      "language": "go",
+      "line_count": 6,
+      "content_hash": "sha256:af20f56f7925f8c172a58dc02938b36a60e9ab338b23e3b1f743c5b47ac180f1",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "main",
+        "module_path": "example.com/app",
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "main.go",
+      "reference": "example.com/dep/other/pkg",
+      "reason": "replacement target does not exist",
+      "line": 5,
+      "column": 5
+    }
+  ],
+  "external_references": [
+    {
+      "source": "main.go",
+      "reference": "example.com/dep/sub/pkg",
+      "top_level": "example.com",
+      "line": 4,
+      "column": 5
+    }
+  ],
+  "excluded_references": [],
+  "coverage": {
+    "references": 2,
+    "resolved": 0,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 1,
+    "excluded": 0,
+    "failed": 1,
+    "python": null,
+    "go": {
+      "packages": 1
+    },
+    "failures_by_reason": {
+      "replacement target does not exist": 1
+    },
+    "failure_examples": [
+      {
+        "source": "main.go",
+        "reference": "example.com/dep/other/pkg",
+        "reason": "replacement target does not exist",
+        "line": 5,
+        "column": 5
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 2,
+    "parsed": 1,
+    "failed_parse": 0,
+    "excluded": 1,
+    "excluded_by_reason": {
+      "not a Go file": 1
+    }
+  }
+}

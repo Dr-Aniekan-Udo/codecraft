@@ -95,12 +95,17 @@ Each rule below is a constraint on the resolver. Where the rule says "reported",
 **Go.** Go's package model is different, so edges point at packages and each package maps to the files in its directory.
 
 - The module path comes from the module file. Replacement directives and multi-module workspaces are read, so the repository boundary is correct.
-- Test files form their own edge kind. External test packages in the same directory are separate packages.
+- Test files are nodes marked as tests. A test file's imports are edges out, and no production file gets an edge into a test file. External test packages in the same directory are separate packages.
 - Build constraints exclude files for other platforms. Excluded files are reported as excluded for the build context shown on the map, never as absent. The default context is shown to the person viewing the map.
 - Dot imports and blank imports each have their own edge kind.
-- Calls into C code are reported as unresolved, because the C code is not part of what the parser reads.
-- Embedded files with a literal path are edges. A glob expands to the matching files.
-- Files marked as generated are labelled as generated.
+- Calls into C code, through the cgo pseudo-package, are recorded in their own category. They are neither edges nor failures, because the C code is not part of what the parser reads.
+- Embedded files are not read by the first version of the Go parser. Embedding is added in a later phase, with its own written rule for literal paths and globs.
+- A Go file that fails to parse draws no edges. Each import in it that points inside the repository is still shown, as a failed import, so it does not disappear from coverage. An import that points outside the repository stays external.
+- A folder whose non-test files name more than one package is a conflict. Each conflicting file is failed with the conflict reason, unless it already has a syntax error, which is kept. An import into a conflicting folder is unresolved with the same reason.
+- An import of a folder that contains only a main package is unresolved. A main package is not importable.
+- A repository with no module file cannot attribute its imports to a module, so each import is unresolved, and the reason says no module file declares a path.
+- A module file with a malformed directive is omitted from the module list. Its failure reaches only the imports that depend on it. Imports to packages outside the repository stay external.
+- Files marked as generated are parsed as written. Their imports are real, so they are nodes and their edges are drawn like any other file's. The output carries no generated label.
 
 **Configuration and data files.** These produce edges only when a value names something that exists in the input.
 

@@ -1,0 +1,127 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language go; tree-sitter 0.26.0; tree-sitter-go 0.25.0)",
+  "python": null,
+  "go": {
+    "build_context": {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "modules": []
+  },
+  "files": [
+    {
+      "path": "app/go.mod",
+      "folder": "app",
+      "language": null,
+      "line_count": 4,
+      "content_hash": "sha256:8d7be03859eef3f9e51152ec964fab97241d4d044505d85fec1db720c61418c9",
+      "is_node": false,
+      "excluded_reason": "not a Go file",
+      "parse_failure": {
+        "reason": "malformed module file",
+        "line": null,
+        "column": null
+      },
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "app/lib/lib.go",
+      "folder": "app/lib",
+      "language": "go",
+      "line_count": 1,
+      "content_hash": "sha256:6d5de2f89b37d300a3aea78915deab1ef26054b0edd6324ecfc6b168abd8a0ae",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "lib",
+        "module_path": null,
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    },
+    {
+      "path": "app/main.go",
+      "folder": "app",
+      "language": "go",
+      "line_count": 8,
+      "content_hash": "sha256:a04a7f8dc5c184b9c751e82a55d79608b2d34c6021a024e454a7d0e99b92d895",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": {
+        "package": "main",
+        "module_path": null,
+        "build_constraints": [],
+        "is_test": false,
+        "build_constraint_exclusion_reason": null
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "app/main.go",
+      "reference": "example.com/app/lib",
+      "reason": "malformed module file",
+      "line": 5,
+      "column": 5
+    }
+  ],
+  "external_references": [
+    {
+      "source": "app/main.go",
+      "reference": "fmt",
+      "top_level": "fmt",
+      "line": 4,
+      "column": 5
+    }
+  ],
+  "excluded_references": [],
+  "coverage": {
+    "references": 2,
+    "resolved": 0,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 1,
+    "excluded": 0,
+    "failed": 1,
+    "python": null,
+    "go": {
+      "packages": 2
+    },
+    "failures_by_reason": {
+      "malformed module file": 1
+    },
+    "failure_examples": [
+      {
+        "source": "app/main.go",
+        "reference": "example.com/app/lib",
+        "reason": "malformed module file",
+        "line": 5,
+        "column": 5
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 3,
+    "parsed": 2,
+    "failed_parse": 0,
+    "excluded": 1,
+    "excluded_by_reason": {
+      "not a Go file": 1
+    }
+  }
+}

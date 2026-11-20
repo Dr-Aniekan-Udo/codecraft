@@ -60,18 +60,24 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _summary(model: RepositoryParse, root: Path) -> list[str]:
     files = model.file_coverage
     coverage = model.coverage
-    python = model.python
-    import_root = python.import_root if python is not None else "not reported"
-    import_rule = python.import_root_rule if python is not None else "not reported"
-    namespace_packages = coverage.python.namespace_packages if coverage.python is not None else 0
     lines = [
         f"parser: {model.parser_version}",
         f"root: {root}",
-        f"import root: {import_root} ({import_rule})",
-        f"files: {files.found} found, {files.parsed} parsed, "
-        f"{files.failed_parse} failed to parse, {files.excluded} excluded",
-        f"excluded directories: {len(model.excluded_directories)}",
     ]
+    if model.python is not None:
+        lines.append(f"import root: {model.python.import_root} ({model.python.import_root_rule})")
+    elif model.go is not None:
+        context = model.go.build_context
+        lines.append(f"go build context: {context.os}/{context.arch}")
+    else:
+        lines.append("import root: not reported")
+    lines.extend(
+        [
+            f"files: {files.found} found, {files.parsed} parsed, "
+            f"{files.failed_parse} failed to parse, {files.excluded} excluded",
+            f"excluded directories: {len(model.excluded_directories)}",
+        ]
+    )
     lines.extend(
         f"  {reason}: {count}"
         for reason, count in _counts_by_reason(model.excluded_directories).items()
@@ -98,13 +104,26 @@ def _summary(model: RepositoryParse, root: Path) -> list[str]:
             f"edges: {len(model.edges)}",
             f"references: {coverage.references} total, {coverage.resolved} resolved, "
             f"{coverage.symbols} symbols, {coverage.star_imports} star imports, "
-            f"{coverage.external} external, "
+            f"{coverage.cgo} cgo, {coverage.external} external, "
             f"{coverage.excluded} excluded, {coverage.failed} failed",
-            f"namespace packages: {namespace_packages}",
-            f"unresolved: {coverage.failed}",
         ]
     )
+    if coverage.python is not None:
+        lines.append(f"namespace packages: {coverage.python.namespace_packages}")
+    elif model.go is not None and coverage.go is not None:
+        module_list = ", ".join(
+            f"{module.module_path}={module.folder}" for module in model.go.modules
+        )
+        lines.append(f"go modules: {module_list if module_list else 'none'}")
+        lines.append(f"go packages: {coverage.go.packages}")
+    lines.append(f"unresolved: {coverage.failed}")
     lines.extend(f"  {reason}: {count}" for reason, count in coverage.failures_by_reason.items())
+    parse_failures = Counter(
+        record.parse_failure.reason for record in model.files if record.parse_failure is not None
+    )
+    if parse_failures:
+        lines.append("parse failures:")
+        lines.extend(f"  {reason}: {count}" for reason, count in sorted(parse_failures.items()))
     lines.append("file exclusions:")
     lines.extend(f"  {reason}: {count}" for reason, count in files.excluded_by_reason.items())
     return lines

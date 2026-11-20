@@ -27,6 +27,7 @@ from codecraft_core.model import (
     StarImportStatus,
     SymbolRecord,
     SymbolStatus,
+    TargetKind,
 )
 from tree_sitter import Language as TreeLanguage
 from tree_sitter import Node, Parser
@@ -108,16 +109,21 @@ def parse_python_repository(root: Path) -> RepositoryParse:
 
     return build_repository_parse(
         parser_version=PARSER_VERSION,
-        python=PythonRepositoryDetails(
-            import_root=import_root,
-            import_root_rule=import_root_rule,
-        ),
-        python_coverage=PythonCoverageDetails(namespace_packages=index.namespace_package_count),
+        language_details={
+            "python": PythonRepositoryDetails(
+                import_root=import_root,
+                import_root_rule=import_root_rule,
+            )
+        },
+        language_coverage_details={
+            "python": PythonCoverageDetails(namespace_packages=index.namespace_package_count)
+        },
         files=files,
         excluded_directories=walked.excluded_directories,
         edges=outcome.edges,
         symbol_references=outcome.symbols,
         star_import_references=outcome.stars,
+        cgo_references=[],
         unresolved=outcome.unresolved,
         external=outcome.external,
         excluded=outcome.excluded,
@@ -364,6 +370,7 @@ def _resolved_file(
         Edge(
             source=source.path,
             target=match.path,
+            target_kind=TargetKind.FILE,
             kind=raw.kind,
             condition=raw.condition,
             line=raw.line,

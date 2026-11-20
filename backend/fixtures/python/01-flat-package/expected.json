@@ -4,6 +4,7 @@
     "import_root": ".",
     "import_root_rule": "repository root"
   },
+  "go": null,
   "files": [
     {
       "path": "flatpkg/__init__.py",
@@ -19,7 +20,8 @@
         "module": "flatpkg",
         "package_kind": "regular",
         "is_package": true
-      }
+      },
+      "go": null
     },
     {
       "path": "flatpkg/alpha.py",
@@ -35,7 +37,8 @@
         "module": "flatpkg.alpha",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "flatpkg/beta.py",
@@ -51,7 +54,8 @@
         "module": "flatpkg.beta",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     },
     {
       "path": "flatpkg/gamma.py",
@@ -67,7 +71,8 @@
         "module": "flatpkg.gamma",
         "package_kind": "regular",
         "is_package": false
-      }
+      },
+      "go": null
     }
   ],
   "excluded_directories": [],
@@ -75,30 +80,37 @@
     {
       "source": "flatpkg/alpha.py",
       "target": "flatpkg/beta.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": null,
+      "alias": null,
       "line": 1,
       "column": 1
     },
     {
       "source": "flatpkg/beta.py",
       "target": "flatpkg/alpha.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": null,
+      "alias": null,
       "line": 1,
       "column": 1
     },
     {
       "source": "flatpkg/gamma.py",
       "target": "flatpkg/alpha.py",
+      "target_kind": "file",
       "kind": "import",
       "condition": null,
+      "alias": null,
       "line": 1,
       "column": 1
     }
   ],
   "symbol_references": [],
   "star_import_references": [],
+  "cgo_references": [],
   "unresolved_references": [],
   "external_references": [],
   "excluded_references": [],
@@ -107,12 +119,14 @@
     "resolved": 3,
     "symbols": 0,
     "star_imports": 0,
+    "cgo": 0,
     "external": 0,
     "excluded": 0,
     "failed": 0,
     "python": {
       "namespace_packages": 0
     },
+    "go": null,
     "failures_by_reason": {},
     "failure_examples": []
   },

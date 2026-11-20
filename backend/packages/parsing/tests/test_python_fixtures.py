@@ -1,4 +1,4 @@
-"""The eight Part 3a fixtures, checked against output written before the parser ran."""
+"""Python fixtures, checked against output written before the parser ran."""
 
 import json
 import shutil
@@ -21,7 +21,7 @@ _FIXTURE_NAMES = (
 )
 
 
-def test_the_part_3a_fixtures_exist() -> None:
+def test_every_python_fixture_directory_exists() -> None:
     found = sorted(path.name for path in _FIXTURES.iterdir() if path.is_dir())
     assert found == list(_FIXTURE_NAMES)
 
