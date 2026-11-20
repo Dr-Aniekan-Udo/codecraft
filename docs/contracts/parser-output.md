@@ -32,12 +32,13 @@ at the same three levels.
 
 ## Bounds
 
-- The walk reads at most **50,000 files**. A repository with more fails the run with
-  `repository exceeds the 50000 file limit`.
-- A file larger than **2,000,000 bytes** is excluded with reason `file exceeds size
-  limit`. It is read no further than size-limit + 1 bytes, is never parsed in part, and its
-  hash and line count stay null.
-- The numbers are named constants in `codecraft_parsing.common.walker`.
+- The walk reads at most the configured file-count limit, `PARSE_MAX_FILES`. A repository
+  with more fails the run with `repository exceeds the <limit> file limit`.
+- A file larger than the configured byte limit, `PARSE_MAX_FILE_BYTES`, is excluded with
+  reason `file exceeds size limit`. It is read no further than size-limit + 1 bytes, is
+  never parsed in part, and its hash and line count stay null.
+- The limits are required values in `codecraft_settings.Settings`; the parser receives
+  them as parameters and never reads configuration.
 
 Every `line` and `column` is a one-based integer of at least 1. Every count (`line_count`,
 `namespace_packages`, each coverage count and each value in `failures_by_reason` and
@@ -67,6 +68,11 @@ decoded text cannot be encoded as UTF-8 is a parse failure with reason
 `cannot encode source as UTF-8`. A parse failure with no position, which is a decode or
 encode failure, has null `line` and `column`. `adapter_role` is `fallback` for every file,
 node or excluded.
+
+A Python file that does not parse draws no edges. Each import the grammar could still
+read and that points inside the repository is a failed reference at its own position with
+reason `file has a syntax error`; an import that points outside the repository stays
+external. An import whose own text could not be read keeps its own reason.
 
 A directory that cannot be listed is recorded in `excluded_directories` with reason
 `directory cannot be listed`; its contents are never read. A file that cannot be read is
