@@ -98,6 +98,8 @@ def _settings() -> Settings:
         CLERK_JWT_ISSUER="https://clerk.example",
         CLERK_WEBHOOK_SIGNING_SECRET=_SECRET,
         CLERK_SECRET_KEY="sk_test_secret",
+        PARSE_MAX_FILES=50_000,
+        PARSE_MAX_FILE_BYTES=2_000_000,
     )
 
 

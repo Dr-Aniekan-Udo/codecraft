@@ -15,29 +15,38 @@ from pathlib import Path, PurePosixPath
 from typing import cast
 
 from codecraft_parsing.common.walker import (
-    MAX_FILE_BYTES,
-    MAX_FILE_COUNT,
     directory_exclusion_reason,
     read_within_limit,
 )
 
 
-def detect_import_root(root: Path) -> tuple[str, str]:
+def detect_import_root(
+    root: Path,
+    *,
+    max_file_count: int,
+    max_file_bytes: int,
+) -> tuple[str, str]:
     """Return the import root, as a POSIX path, and the rule that chose it.
 
     ``.`` means the repository root.
     """
-    for candidate, rule in _configured_candidates(root):
+    for candidate, rule in _configured_candidates(root, max_file_bytes=max_file_bytes):
         normalised = _existing_relative_directory(root, candidate)
         if normalised is not None:
             return normalised, rule
-    if directory_exclusion_reason("src", root / "src") is None and _has_python_file(root / "src"):
+    if directory_exclusion_reason("src", root / "src") is None and _has_python_file(
+        root / "src",
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    ):
         return "src", "src layout"
     return ".", "repository root"
 
 
-def _configured_candidates(root: Path) -> list[tuple[str, str]]:
-    return _pyproject_candidates(root) + _setup_cfg_candidates(root)
+def _configured_candidates(root: Path, *, max_file_bytes: int) -> list[tuple[str, str]]:
+    return _pyproject_candidates(root, max_file_bytes=max_file_bytes) + _setup_cfg_candidates(
+        root, max_file_bytes=max_file_bytes
+    )
 
 
 def _existing_relative_directory(root: Path, candidate: str) -> str | None:
@@ -76,12 +85,12 @@ def _existing_relative_directory(root: Path, candidate: str) -> str | None:
     return normalised if normalised else "."
 
 
-def _read_config_text(path: Path) -> str | None:
+def _read_config_text(path: Path, *, max_file_bytes: int) -> str | None:
     """Read a configuration file only when it is safe to treat as data."""
     try:
         if path.is_symlink():
             return None
-        data = read_within_limit(path, MAX_FILE_BYTES)
+        data = read_within_limit(path, max_file_bytes)
         if data is None:
             return None
         return data.decode("utf-8")
@@ -89,9 +98,9 @@ def _read_config_text(path: Path) -> str | None:
         return None
 
 
-def _pyproject_candidates(root: Path) -> list[tuple[str, str]]:
+def _pyproject_candidates(root: Path, *, max_file_bytes: int) -> list[tuple[str, str]]:
     path = root / "pyproject.toml"
-    text = _read_config_text(path)
+    text = _read_config_text(path, max_file_bytes=max_file_bytes)
     if text is None:
         return []
     try:
@@ -133,9 +142,9 @@ def _pyproject_candidates(root: Path) -> list[tuple[str, str]]:
     return candidates
 
 
-def _setup_cfg_candidates(root: Path) -> list[tuple[str, str]]:
+def _setup_cfg_candidates(root: Path, *, max_file_bytes: int) -> list[tuple[str, str]]:
     path = root / "setup.cfg"
-    text = _read_config_text(path)
+    text = _read_config_text(path, max_file_bytes=max_file_bytes)
     if text is None:
         return []
     parser = configparser.ConfigParser(interpolation=None)
@@ -154,7 +163,12 @@ def _setup_cfg_candidates(root: Path) -> list[tuple[str, str]]:
     return []
 
 
-def _has_python_file(directory: Path) -> bool:
+def _has_python_file(
+    directory: Path,
+    *,
+    max_file_count: int,
+    max_file_bytes: int,
+) -> bool:
     # A symlinked src directory is excluded by the walk, so it cannot choose the
     # layout here either.
     if directory.is_symlink() or not directory.is_dir():
@@ -182,7 +196,7 @@ def _has_python_file(directory: Path) -> bool:
         dirnames[:] = kept
         for name in filenames:
             seen += 1
-            if seen > MAX_FILE_COUNT:
+            if seen > max_file_count:
                 return False
             if not name.endswith(".py"):
                 continue
@@ -190,7 +204,7 @@ def _has_python_file(directory: Path) -> bool:
             if candidate.is_symlink():
                 continue
             try:
-                if candidate.stat().st_size > MAX_FILE_BYTES:
+                if candidate.stat().st_size > max_file_bytes:
                     continue
             except OSError:
                 continue

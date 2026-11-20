@@ -1,0 +1,23 @@
+[project]
+name = "codecraft-app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Dr-Aniekan-Udo", email = "aniekanetimudo@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "codecraft-core",
+    "codecraft-parsing",
+    "codecraft-settings",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+codecraft-parsing = { workspace = true }
+codecraft-settings = { workspace = true }
+codecraft-core = { workspace = true }

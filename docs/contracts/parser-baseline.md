@@ -61,3 +61,36 @@ Check: 1681 = 806 parsed + 875 excluded. 12749 = 3731 + 6072 + 0 + 2942 + 0 + 4.
 ## Status
 
 These figures were measured after the star-import status was implemented. Neither repository contains a star import, so the star-import count is 0 and every other figure is unchanged from the earlier measurement. The figures stay valid until a parser change moves one of them. Any such change must be explained against this record before it is accepted.
+
+## Go, Part 3b
+
+Measured with `--language go`, on the three pinned repositories. The etcd clone was made with symbolic links enabled. The last measurement pass produced the figures below, and each pass since has matched them.
+
+The gh-aw snapshot was measured from a clone with its version-control folder present, which gives 120 excluded directories. A pinned tarball, which has no version-control folder, gives 119; the difference is that one directory.
+
+| Measure | etcd v3.7.3 | gh-aw v1.2.2 | lazydocker v0.25.2 |
+|---|---|---|---|
+| Commit | 0a173d0410a96d01091b484daae81365bbcde57e | 399a445fe2d8926c616b54b1b82a16b5b2be4445 | 7e7aadc2071d58031bf2daafca1fbd4093efc23f |
+| Files found | 1468 | 8718 | 127 |
+| Parsed | 1033 | 3961 | 83 |
+| Failed to parse | 32 | 13 | 0 |
+| Excluded | 403 | 4744 | 44 |
+| Excluded directories | 7 | 120 | 6 |
+| Edges | 1916 | 4769 | 116 |
+| References | 7001 | 22890 | 423 |
+| Resolved | 1916 | 4769 | 116 |
+| External | 4906 | 18109 | 307 |
+| Failed references | 179 | 12 | 0 |
+| Symbols, star, cgo, excluded references | 0 | 0 | 0 |
+| Packages | 189 | 290 | 16 |
+| Modules | 13 | 1 | 1 |
+| Schema errors | 0 | 0 | 0 |
+
+Reading the figures:
+
+- **Excluded** is the sum of build-constraint exclusions, files that are not Go, and files over the size limit. For etcd: 33, 359 and 11 symbolic links.
+- **Failed to parse** counts files the grammar cannot read. Their readable imports appear as failed references, or as external references if they point outside the repository. For etcd the 32 failed files all carry the named `new` reason, and for gh-aw 12 carry it and one carries the generic syntax reason.
+- **References** equals resolved plus external plus failed references, with no other category in use. Every reference sits in exactly one category.
+- **Go release tags** are false, and no file was excluded by one in these repositories.
+
+Any later change to these figures must be explained against this section. A change caused by a new Go parser rule is expected only where a pinned repository contains the construct the rule covers. The pinned repositories do contain readable imports in failed files, and those are counted as failed references, as the figures show. They contain no conflicting package and no malformed module file.

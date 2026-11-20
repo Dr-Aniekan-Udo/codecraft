@@ -1,17 +1,9 @@
+from codecraft_settings import Settings as BaseSettings
 from pydantic import ValidationInfo, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Required configuration is required: no silent fallback for missing values."""
-
-    model_config = SettingsConfigDict(
-        case_sensitive=True,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        validate_default=True,
-        extra="ignore",
-    )
+    """The API's credentials and origin, on top of the base settings."""
 
     # Empty defaults exist only so the validator can name every missing value.
     # Validation runs on defaults, so a truly missing value still fails startup.

@@ -55,17 +55,32 @@ _RELATIVE_OUTSIDE_ROOT = "relative import in a file outside the import root"
 _RELATIVE_ABOVE_TOP = "relative import climbs above the top-level package"
 _PARENT_NOT_PACKAGE = "parent module is not a package"
 _MODULE_NOT_FOUND = "module not found in repository"
+_FILE_SYNTAX_REASON = "file has a syntax error"
 
 
-def parse_python_repository(root: Path) -> RepositoryParse:
+def parse_python_repository(
+    root: Path,
+    *,
+    max_file_count: int,
+    max_file_bytes: int,
+) -> RepositoryParse:
     """Parse a Python repository. Reads text only; never runs or imports it."""
     root_path = Path(root)
     if not root_path.is_dir():
         raise NotADirectoryError(str(root_path))
     root_path = root_path.resolve()
 
-    import_root, import_root_rule = detect_import_root(root_path)
-    walked = walk_repository(root_path, _classify_python_file)
+    import_root, import_root_rule = detect_import_root(
+        root_path,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
+    walked = walk_repository(
+        root_path,
+        _classify_python_file,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
     files, sources = build_python_files(walked, import_root)
     index = build_module_index(files, walked.directories, walked.excluded_directories, import_root)
     records: dict[str, FileRecord] = {record.path: record for record in files}
@@ -94,8 +109,12 @@ def parse_python_repository(root: Path) -> RepositoryParse:
         failure = _first_syntax_problem(tree.root_node, source)
         if failure is not None:
             # A file that does not parse contributes no edges, but keeps its node
-            # and its module so the gap stays visible on the map.
+            # and its module so the gap stays visible on the map. Imports the
+            # grammar could still read are counted as failed references rather
+            # than dropped, because they are facts about the code.
             parse_failures[record.path] = failure
+            for raw_import in read_imports(tree, source):
+                _resolve_in_failed_file(raw_import, record, index, outcome)
             continue
         for raw_import in read_imports(tree, source):
             _resolve(raw_import, record, index, records, outcome)
@@ -175,6 +194,58 @@ def _resolve(
         _resolve_relative(raw, source, index, records, outcome)
     else:
         _resolve_absolute(raw, source, index, records, outcome)
+
+
+def _resolve_in_failed_file(
+    raw: RawImport,
+    source: FileRecord,
+    index: ModuleIndex,
+    outcome: _Outcome,
+) -> None:
+    """Account for a readable import in a file that does not parse.
+
+    No target can be trusted from a broken tree, so no edge is drawn and no
+    names are resolved. The only question answered is whether the reference
+    points inside the repository; when it does, the file's own syntax failure
+    is its reason.
+    """
+    if raw.failure_reason is not None:
+        _fail(outcome, source, raw, raw.failure_reason)
+        return
+    if raw.is_relative:
+        if (
+            raw.anchor is not None
+            and _pruned_reason(raw.anchor, index) is None
+            and raw.anchor[0] not in index.top_level_names
+        ):
+            outcome.external.append(
+                ExternalReference(
+                    source=source.path,
+                    reference=raw.reference,
+                    top_level=raw.anchor[0],
+                    line=raw.line,
+                    column=raw.column,
+                )
+            )
+            return
+        _fail(outcome, source, raw, _FILE_SYNTAX_REASON)
+        return
+    if (
+        _pruned_reason(raw.parts, index) is None
+        and raw.parts
+        and raw.parts[0] not in index.top_level_names
+    ):
+        outcome.external.append(
+            ExternalReference(
+                source=source.path,
+                reference=raw.reference,
+                top_level=raw.parts[0],
+                line=raw.line,
+                column=raw.column,
+            )
+        )
+        return
+    _fail(outcome, source, raw, _FILE_SYNTAX_REASON)
 
 
 def _resolve_relative(

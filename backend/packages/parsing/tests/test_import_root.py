@@ -4,7 +4,22 @@ from pathlib import Path
 
 import pytest
 from codecraft_core import PythonRepositoryDetails, RepositoryParse
-from codecraft_parsing import parse_repository
+from codecraft_parsing import parse_repository as _parse_repository
+
+
+def parse_repository(
+    root: Path,
+    language: str = "python",
+    *,
+    max_file_count: int = 50_000,
+    max_file_bytes: int = 2_000_000,
+) -> RepositoryParse:
+    return _parse_repository(
+        root,
+        language,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
 
 
 def _details(result: RepositoryParse) -> PythonRepositoryDetails:
@@ -50,12 +65,9 @@ def test_a_src_folder_that_is_an_environment_is_not_a_src_layout(tmp_path: Path)
     assert _details(result).import_root_rule == "repository root"
 
 
-def test_an_oversized_python_file_does_not_choose_src_layout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("codecraft_parsing.python.import_root.MAX_FILE_BYTES", 16)
+def test_an_oversized_python_file_does_not_choose_src_layout(tmp_path: Path) -> None:
     _write(tmp_path / "src" / "large.py", "value = 1\n" * 20)
-    result = parse_repository(tmp_path)
+    result = parse_repository(tmp_path, max_file_bytes=16)
     assert _details(result).import_root == "."
     assert _details(result).import_root_rule == "repository root"
 
@@ -158,16 +170,13 @@ def test_a_source_folder_named_only_in_setup_py_is_not_detected(tmp_path: Path) 
     assert _details(result).import_root_rule == "repository root"
 
 
-def test_an_oversized_pyproject_is_treated_as_absent(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("codecraft_parsing.python.import_root.MAX_FILE_BYTES", 16)
+def test_an_oversized_pyproject_is_treated_as_absent(tmp_path: Path) -> None:
     _write(
         tmp_path / "pyproject.toml",
         '[tool.setuptools]\npackage-dir = {"" = "lib"}\n',
     )
     _write(tmp_path / "lib" / "pkg" / "__init__.py", "")
-    result = parse_repository(tmp_path)
+    result = parse_repository(tmp_path, max_file_bytes=16)
     assert _details(result).import_root == "."
     assert _details(result).import_root_rule == "repository root"
 

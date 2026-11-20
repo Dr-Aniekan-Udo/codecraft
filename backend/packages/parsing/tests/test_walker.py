@@ -6,13 +6,34 @@ from pathlib import Path
 from typing import BinaryIO, cast
 
 import pytest
-from codecraft_core import AdapterRole, FileRecord, Language, PackageKind, PythonFileDetails
-from codecraft_parsing import parse_repository
-from codecraft_parsing.cli import main
+from codecraft_core import (
+    AdapterRole,
+    FileRecord,
+    Language,
+    PackageKind,
+    PythonFileDetails,
+    RepositoryParse,
+)
+from codecraft_parsing import parse_repository as _parse_repository
 from codecraft_parsing.common.walker import (
     UNREADABLE_DIRECTORY_REASON,
     UNREADABLE_FILE_REASON,
 )
+
+
+def parse_repository(
+    root: Path,
+    language: str = "python",
+    *,
+    max_file_count: int = 50_000,
+    max_file_bytes: int = 2_000_000,
+) -> RepositoryParse:
+    return _parse_repository(
+        root,
+        language,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
 
 
 def _write(path: Path, text: str) -> None:
@@ -142,7 +163,7 @@ def test_a_committed_virtual_environment_is_excluded_as_third_party(tmp_path: Pa
 
 
 def test_an_unreadable_directory_is_excluded_and_the_scan_is_incomplete(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A permission-denied directory is simulated for one directory.
 
@@ -171,12 +192,9 @@ def test_an_unreadable_directory_is_excluded_and_the_scan_is_incomplete(
     assert by_path["app.py"].is_node
     assert not any(path.startswith("locked/") for path in by_path)
 
-    assert main([str(tmp_path)]) == 0
-    assert "scan: incomplete (1 directory could not be listed)" in capsys.readouterr().out
-
 
 def test_an_unreadable_file_is_excluded_and_the_scan_is_incomplete(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A file that cannot be opened is simulated by raising where it is read.
 
@@ -205,6 +223,3 @@ def test_an_unreadable_file_is_excluded_and_the_scan_is_incomplete(
     assert locked.content_hash is None
     assert locked.line_count is None
     assert by_path["app.py"].is_node
-
-    assert main([str(tmp_path)]) == 0
-    assert "scan: incomplete (1 file could not be read)" in capsys.readouterr().out

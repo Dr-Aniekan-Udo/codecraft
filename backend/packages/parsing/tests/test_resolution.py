@@ -2,9 +2,24 @@
 
 from pathlib import Path
 
-from codecraft_core import EdgeKind, ImportCondition, StarImportStatus
-from codecraft_parsing import parse_repository
+from codecraft_core import EdgeKind, ImportCondition, RepositoryParse, StarImportStatus
+from codecraft_parsing import parse_repository as _parse_repository
 from codecraft_parsing.python.imports import MAX_REFERENCE_TEXT
+
+
+def parse_repository(
+    root: Path,
+    language: str = "python",
+    *,
+    max_file_count: int = 50_000,
+    max_file_bytes: int = 2_000_000,
+) -> RepositoryParse:
+    return _parse_repository(
+        root,
+        language,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
 
 
 def _write(path: Path, text: str) -> None:
