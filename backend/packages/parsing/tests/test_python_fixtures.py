@@ -5,7 +5,24 @@ import shutil
 from pathlib import Path
 
 import pytest
-from codecraft_parsing import parse_repository
+from codecraft_core import RepositoryParse
+from codecraft_parsing import parse_repository as _parse_repository
+
+
+def parse_repository(
+    root: Path,
+    language: str = "python",
+    *,
+    max_file_count: int = 50_000,
+    max_file_bytes: int = 2_000_000,
+) -> RepositoryParse:
+    return _parse_repository(
+        root,
+        language,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
+
 
 _FIXTURES = Path(__file__).resolve().parents[3] / "fixtures" / "python"
 
@@ -18,6 +35,7 @@ _FIXTURE_NAMES = (
     "06-syntax-error",
     "07-strings-and-comments",
     "08-symbol-import",
+    "48-readable-imports-in-failed-file",
 )
 
 

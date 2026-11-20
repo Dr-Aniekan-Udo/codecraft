@@ -156,14 +156,25 @@ class _ResolutionOutcome:
     resolved: int = 0
 
 
-def parse_go_repository(root: Path) -> RepositoryParse:
+def parse_go_repository(
+    root: Path,
+    *,
+    max_file_count: int,
+    max_file_bytes: int,
+) -> RepositoryParse:
     """Parse a Go repository. Reads text only; never runs or builds it."""
     root_path = Path(root)
     if not root_path.is_dir():
         raise NotADirectoryError(str(root_path))
     root_path = root_path.resolve()
 
-    walked = walk_repository(root_path, classify_go_file, go_directory_reason)
+    walked = walk_repository(
+        root_path,
+        classify_go_file,
+        go_directory_reason,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
     go_mod_paths = [file.path for file in walked.files if posixpath.basename(file.path) == "go.mod"]
     discovery = read_module_discovery(
         root_path,
@@ -173,6 +184,7 @@ def parse_go_repository(root: Path) -> RepositoryParse:
             for file in walked.files
             if posixpath.basename(file.path) == "go.mod"
         },
+        max_file_bytes=max_file_bytes,
     )
     parser = Parser(TreeLanguage(tree_sitter_go.language()))
     built = build_go_files(walked, discovery, parser)

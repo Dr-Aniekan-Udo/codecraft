@@ -14,8 +14,6 @@ from pathlib import Path
 
 from codecraft_core.model import ExcludedDirectory, Language
 
-MAX_FILE_COUNT = 50_000
-MAX_FILE_BYTES = 2_000_000
 UNREADABLE_DIRECTORY_REASON = "directory cannot be listed"
 UNREADABLE_FILE_REASON = "file cannot be read"
 
@@ -94,6 +92,9 @@ def walk_repository(
     root: Path,
     classify: Callable[[str], FileClassification],
     directory_reason: Callable[[str, Path], str | None] | None = None,
+    *,
+    max_file_count: int,
+    max_file_bytes: int,
 ) -> WalkResult:
     """Walk ``root`` in path order, applying the shared exclusions and limits.
 
@@ -150,12 +151,14 @@ def walk_repository(
             if not candidate.is_symlink() and not candidate.is_file():
                 continue
             file_paths.append(_join(folder, name))
-            if len(file_paths) > MAX_FILE_COUNT:
-                raise RepositoryLimitError(f"repository exceeds the {MAX_FILE_COUNT} file limit")
+            if len(file_paths) > max_file_count:
+                raise RepositoryLimitError(f"repository exceeds the {max_file_count} file limit")
 
     file_paths.sort()
     excluded_directories.sort(key=lambda entry: entry.path)
-    files = [_walked_file(root, path, classify) for path in file_paths]
+    files = [
+        _walked_file(root, path, classify, max_file_bytes=max_file_bytes) for path in file_paths
+    ]
 
     return WalkResult(
         files=files,
@@ -165,7 +168,11 @@ def walk_repository(
 
 
 def _walked_file(
-    root: Path, path: str, classify: Callable[[str], FileClassification]
+    root: Path,
+    path: str,
+    classify: Callable[[str], FileClassification],
+    *,
+    max_file_bytes: int,
 ) -> WalkedFile:
     name = posixpath.basename(path)
     folder = posixpath.dirname(path) or "."
@@ -180,7 +187,7 @@ def _walked_file(
 
     classification = classify(name)
     try:
-        data = read_within_limit(candidate, MAX_FILE_BYTES)
+        data = read_within_limit(candidate, max_file_bytes)
     except OSError:
         # An unreadable file is recorded, not fatal: the run must never omit a
         # file silently just because the operating system refused to open it.

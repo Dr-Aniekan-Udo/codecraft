@@ -1,5 +1,11 @@
-from pydantic import ValidationInfo, field_validator
+from pathlib import Path
+
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Anchored to this file, not the working directory: the API reads backend/.env
+# whether it is started from the backend root or anywhere else.
+_ENV_FILE = Path(__file__).resolve().parents[4] / ".env"
 
 
 class Settings(BaseSettings):
@@ -7,7 +13,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         case_sensitive=True,
-        env_file=".env",
+        env_file=_ENV_FILE,
         env_file_encoding="utf-8",
         validate_default=True,
         extra="ignore",
@@ -21,6 +27,11 @@ class Settings(BaseSettings):
     CLERK_WEBHOOK_SIGNING_SECRET: str = ""
     CLERK_SECRET_KEY: str = ""
     CODECRAFT_FRONTEND_ORIGIN: str = "http://localhost:5173"
+
+    # Zero is the sentinel for a missing integer limit: it can never be valid,
+    # and validation runs on defaults, so the error names the field.
+    PARSE_MAX_FILES: int = Field(default=0, ge=1)
+    PARSE_MAX_FILE_BYTES: int = Field(default=0, ge=1)
 
     @field_validator(
         "DATABASE_URL",

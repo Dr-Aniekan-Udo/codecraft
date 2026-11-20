@@ -1,0 +1,105 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (language python; tree-sitter 0.26.0; tree-sitter-python 0.25.0)",
+  "python": {
+    "import_root": ".",
+    "import_root_rule": "repository root"
+  },
+  "go": null,
+  "files": [
+    {
+      "path": "broken.py",
+      "folder": ".",
+      "language": "python",
+      "line_count": 6,
+      "content_hash": "sha256:8add2e77347d29cb53293736fddfe0e3315a7dbac85fabfbeb9052de4206e4b3",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": {
+        "reason": "syntax error: missing \")\"",
+        "line": 5,
+        "column": 12
+      },
+      "adapter_role": "fallback",
+      "python": {
+        "module": "broken",
+        "package_kind": null,
+        "is_package": false
+      },
+      "go": null
+    },
+    {
+      "path": "pkg/__init__.py",
+      "folder": "pkg",
+      "language": "python",
+      "line_count": 1,
+      "content_hash": "sha256:e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": {
+        "module": "pkg",
+        "package_kind": "regular",
+        "is_package": true
+      },
+      "go": null
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "broken.py",
+      "reference": "pkg",
+      "reason": "file has a syntax error",
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "external_references": [
+    {
+      "source": "broken.py",
+      "reference": "requests",
+      "top_level": "requests",
+      "line": 2,
+      "column": 1
+    }
+  ],
+  "excluded_references": [],
+  "coverage": {
+    "references": 2,
+    "resolved": 0,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 1,
+    "excluded": 0,
+    "failed": 1,
+    "python": {
+      "namespace_packages": 0
+    },
+    "go": null,
+    "failures_by_reason": {
+      "file has a syntax error": 1
+    },
+    "failure_examples": [
+      {
+        "source": "broken.py",
+        "reference": "pkg",
+        "reason": "file has a syntax error",
+        "line": 1,
+        "column": 1
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 2,
+    "parsed": 1,
+    "failed_parse": 1,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

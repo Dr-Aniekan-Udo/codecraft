@@ -6,9 +6,24 @@ from pathlib import Path
 
 import codecraft_parsing.common.walker as walker
 import pytest
-from codecraft_parsing import parse_repository
-from codecraft_parsing.cli import main
+from codecraft_core import RepositoryParse
+from codecraft_parsing import parse_repository as _parse_repository
 from codecraft_parsing.common.walker import RepositoryLimitError
+
+
+def parse_repository(
+    root: Path,
+    language: str = "python",
+    *,
+    max_file_count: int = 50_000,
+    max_file_bytes: int = 2_000_000,
+) -> RepositoryParse:
+    return _parse_repository(
+        root,
+        language,
+        max_file_count=max_file_count,
+        max_file_bytes=max_file_bytes,
+    )
 
 
 def _write(path: Path, text: str) -> None:
@@ -16,18 +31,22 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def test_the_default_limits_are_the_contract_values() -> None:
-    assert walker.MAX_FILE_COUNT == 50_000
-    assert walker.MAX_FILE_BYTES == 2_000_000
-
-
-def test_file_count_limit_fails_the_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(walker, "MAX_FILE_COUNT", 1)
+def test_file_count_limit_fails_the_run(tmp_path: Path) -> None:
     _write(tmp_path / "one.py", "VALUE = 1\n")
     _write(tmp_path / "two.py", "VALUE = 2\n")
 
     with pytest.raises(RepositoryLimitError, match="file limit"):
-        parse_repository(tmp_path)
+        parse_repository(tmp_path, max_file_count=1)
+
+
+def test_file_count_at_the_limit_succeeds(tmp_path: Path) -> None:
+    _write(tmp_path / "one.py", "VALUE = 1\n")
+    _write(tmp_path / "two.py", "VALUE = 2\n")
+
+    result = parse_repository(tmp_path, max_file_count=2)
+
+    assert result.file_coverage.found == 2
+    assert result.file_coverage.parsed == 2
 
 
 class _RecordingStream(io.BytesIO):
@@ -68,13 +87,10 @@ def test_the_capped_read_asks_for_at_most_the_limit_plus_one(
     assert rejected.requested == [11]
 
 
-def test_file_size_limit_excludes_the_file_through_the_capped_read(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(walker, "MAX_FILE_BYTES", 10)
+def test_file_size_limit_excludes_the_file_through_the_capped_read(tmp_path: Path) -> None:
     _write(tmp_path / "big.py", "VALUE = 123456789\n")
 
-    result = parse_repository(tmp_path)
+    result = parse_repository(tmp_path, max_file_bytes=10)
     record = result.files[0]
 
     assert record.path == "big.py"
@@ -85,14 +101,11 @@ def test_file_size_limit_excludes_the_file_through_the_capped_read(
     assert result.coverage.references == 0
 
 
-def test_an_import_of_an_oversized_file_is_excluded(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(walker, "MAX_FILE_BYTES", 15)
+def test_an_import_of_an_oversized_file_is_excluded(tmp_path: Path) -> None:
     _write(tmp_path / "big.py", "VALUE = 123456789\n")
     _write(tmp_path / "app.py", "import big\n")
 
-    result = parse_repository(tmp_path)
+    result = parse_repository(tmp_path, max_file_bytes=15)
 
     assert [(record.reference, record.reason) for record in result.excluded_references] == [
         ("big", "file exceeds size limit")
@@ -100,15 +113,12 @@ def test_an_import_of_an_oversized_file_is_excluded(
     assert result.coverage.external == 0
 
 
-def test_an_import_of_an_excluded_init_is_excluded(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(walker, "MAX_FILE_BYTES", 20)
+def test_an_import_of_an_excluded_init_is_excluded(tmp_path: Path) -> None:
     _write(tmp_path / "pkg" / "__init__.py", 'VALUE = "this package init is too large"\n')
     _write(tmp_path / "pkg" / "mod.py", "VALUE = 1\n")
     _write(tmp_path / "app.py", "import pkg\n")
 
-    result = parse_repository(tmp_path)
+    result = parse_repository(tmp_path, max_file_bytes=20)
 
     assert [(record.reference, record.reason) for record in result.excluded_references] == [
         ("pkg", "file exceeds size limit")
@@ -117,14 +127,3 @@ def test_an_import_of_an_excluded_init_is_excluded(
     assert record.python is not None
     assert record.python.package_kind is not None
     assert record.python.package_kind.value == "regular"
-
-
-def test_the_cli_reports_a_file_count_limit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr(walker, "MAX_FILE_COUNT", 1)
-    _write(tmp_path / "one.py", "VALUE = 1\n")
-    _write(tmp_path / "two.py", "VALUE = 2\n")
-
-    assert main([str(tmp_path)]) == 2
-    assert "file limit" in capsys.readouterr().err

@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 
 from codecraft_core.model import GoModule, GoModuleSource
 
-from codecraft_parsing.common.walker import MAX_FILE_BYTES, read_within_limit
+from codecraft_parsing.common.walker import read_within_limit
 
 MALFORMED_MODULE_REASON = "malformed module file"
 UNREADABLE_MODULE_REASON = "module file cannot be read"
@@ -57,6 +57,8 @@ def read_module_discovery(
     root: Path,
     go_mod_paths: Sequence[str],
     file_reasons: Mapping[str, str | None] | None = None,
+    *,
+    max_file_bytes: int,
 ) -> ModuleDiscovery:
     """Find every module and classify every replacement directive."""
     root_path = root.resolve()
@@ -73,7 +75,11 @@ def read_module_discovery(
 
     reasons = file_reasons or {}
     for path in sorted(go_mod_paths):
-        parsed = _read_go_mod(root_path / path, reasons.get(path))
+        parsed = _read_go_mod(
+            root_path / path,
+            reasons.get(path),
+            max_file_bytes=max_file_bytes,
+        )
         folder = posixpath.dirname(path) or "."
         module_folders.add(folder)
         if parsed.failure_reason is not None:
@@ -93,7 +99,7 @@ def read_module_discovery(
             )
         replacements.extend((folder, old, new) for old, new in parsed.replacements)
 
-    work = _read_go_work(root_path / "go.work")
+    work = _read_go_work(root_path / "go.work", max_file_bytes=max_file_bytes)
     _apply_workspace(root_path, modules, work.folders)
     replacements.extend((".", old, new) for old, new in work.replacements)
     for base_folder, old, new in replacements:
@@ -224,8 +230,13 @@ def _set_module_source(
             return
 
 
-def _read_go_mod(path: Path, unreadable_reason: str | None = None) -> GoMod:
-    text = _read_text(path)
+def _read_go_mod(
+    path: Path,
+    unreadable_reason: str | None = None,
+    *,
+    max_file_bytes: int,
+) -> GoMod:
+    text = _read_text(path, max_file_bytes=max_file_bytes)
     if text is None:
         return GoMod(
             module_path=None,
@@ -324,8 +335,8 @@ def _valid_go_version(value: str) -> bool:
     return len(value) > 2 and value.startswith("1.") and value[2].isdigit()
 
 
-def _read_go_work(path: Path) -> GoWork:
-    text = _read_text(path)
+def _read_go_work(path: Path, *, max_file_bytes: int) -> GoWork:
+    text = _read_text(path, max_file_bytes=max_file_bytes)
     if text is None:
         return GoWork(folders=(), replacements=())
 
@@ -441,11 +452,11 @@ def _resolve_folder(root: Path, base_folder: str, value: str) -> str | None:
     return folder if inside and exists else None
 
 
-def _read_text(path: Path) -> str | None:
+def _read_text(path: Path, *, max_file_bytes: int) -> str | None:
     try:
         if path.is_symlink():
             return None
-        data = read_within_limit(path, MAX_FILE_BYTES)
+        data = read_within_limit(path, max_file_bytes)
         if data is None:
             return None
         return data.decode("utf-8")

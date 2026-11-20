@@ -8,18 +8,20 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from codecraft_core.model import ExcludedDirectory, RepositoryParse
-
 from codecraft_parsing import SUPPORTED_LANGUAGES, parse_repository
 from codecraft_parsing.common.walker import (
     UNREADABLE_DIRECTORY_REASON,
     UNREADABLE_FILE_REASON,
     RepositoryLimitError,
 )
+from pydantic import ValidationError
+
+from codecraft_api.config import Settings
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments_parser = argparse.ArgumentParser(
-        prog="python -m codecraft_parsing",
+        prog="python -m codecraft_api.parse_cli",
         description="Parse a repository directory into files, edges and coverage.",
     )
     arguments_parser.add_argument("directory", help="repository directory to parse")
@@ -37,13 +39,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     directory: str = arguments.directory
     language: str = arguments.language
     output: Path | None = arguments.output
+
+    try:
+        settings = Settings()
+    except ValidationError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
     root = Path(directory)
     if not root.is_dir():
         print(f"error: not a directory: {directory}", file=sys.stderr)
         return 2
 
     try:
-        model = parse_repository(root, language)
+        model = parse_repository(
+            root,
+            language,
+            max_file_count=settings.PARSE_MAX_FILES,
+            max_file_bytes=settings.PARSE_MAX_FILE_BYTES,
+        )
     except RepositoryLimitError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -131,3 +145,7 @@ def _summary(model: RepositoryParse, root: Path) -> list[str]:
 
 def _counts_by_reason(directories: Sequence[ExcludedDirectory]) -> dict[str, int]:
     return dict(sorted(Counter(entry.reason for entry in directories).items()))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
