@@ -14,14 +14,12 @@ from codecraft_parsing.common.walker import (
     UNREADABLE_FILE_REASON,
     RepositoryLimitError,
 )
-from pydantic import ValidationError
-
-from codecraft_api.config import Settings
+from codecraft_settings import Settings
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments_parser = argparse.ArgumentParser(
-        prog="python -m codecraft_api.parse_cli",
+        prog="python -m codecraft_app.parse",
         description="Parse a repository directory into files, edges and coverage.",
     )
     arguments_parser.add_argument("directory", help="repository directory to parse")
@@ -42,7 +40,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         settings = Settings()
-    except ValidationError as error:
+    except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

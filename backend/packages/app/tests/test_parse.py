@@ -6,17 +6,11 @@ import sys
 from pathlib import Path
 
 import pytest
-from codecraft_api.config import Settings
-from codecraft_api.parse_cli import main
+from codecraft_app.parse import main
 from codecraft_core import RepositoryParse
+from codecraft_settings import Settings
 
 _ENV = {
-    "DATABASE_URL": "postgresql://api@example/db",
-    "MEMBERSHIP_SYNC_DATABASE_URL": "postgresql://sync@example/db",
-    "CLERK_JWT_ISSUER": "https://clerk.example",
-    "CLERK_WEBHOOK_SIGNING_SECRET": "whsec_c2VjcmV0",
-    "CLERK_SECRET_KEY": "sk_test_secret",
-    "CODECRAFT_FRONTEND_ORIGIN": "http://localhost:5173",
     "PARSE_MAX_FILES": "50000",
     "PARSE_MAX_FILE_BYTES": "2000000",
 }
@@ -28,7 +22,7 @@ _PARSER_VERSION = (
 
 def _run(*arguments: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "codecraft_api.parse_cli", *arguments],
+        [sys.executable, "-m", "codecraft_app.parse", *arguments],
         capture_output=True,
         text=True,
         encoding="utf-8",

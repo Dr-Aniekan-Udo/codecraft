@@ -30,8 +30,9 @@ testpaths = ["packages"]
 
 [tool.importlinter]
 root_packages = [
-  "codecraft_core", "codecraft_parsing", "codecraft_analysis",
-  "codecraft_storage", "codecraft_explain", "codecraft_api",
+  "codecraft_core", "codecraft_settings", "codecraft_parsing",
+  "codecraft_analysis", "codecraft_storage", "codecraft_explain",
+  "codecraft_api", "codecraft_app",
 ]
 
 [[tool.importlinter.contracts]]
@@ -69,6 +70,42 @@ name = "Go parser imports no Python parser"
 type = "forbidden"
 source_modules = ["codecraft_parsing.go"]
 forbidden_modules = ["codecraft_parsing.python"]
+
+[[tool.importlinter.contracts]]
+name = "API imports no parser"
+type = "forbidden"
+source_modules = ["codecraft_api"]
+forbidden_modules = ["codecraft_parsing"]
+
+[[tool.importlinter.contracts]]
+name = "Nothing imports the app"
+type = "forbidden"
+source_modules = [
+  "codecraft_core", "codecraft_settings", "codecraft_parsing",
+  "codecraft_analysis", "codecraft_storage", "codecraft_explain",
+  "codecraft_api",
+]
+forbidden_modules = ["codecraft_app"]
+
+[[tool.importlinter.contracts]]
+name = "Parser imports no configuration, API or app"
+type = "forbidden"
+source_modules = ["codecraft_parsing"]
+forbidden_modules = ["codecraft_settings", "codecraft_api", "codecraft_app"]
+
+[[tool.importlinter.contracts]]
+name = "Settings imports no other internal package"
+type = "forbidden"
+source_modules = ["codecraft_settings"]
+forbidden_modules = [
+  "codecraft_api", "codecraft_parsing", "codecraft_storage", "codecraft_app",
+]
+
+[[tool.importlinter.contracts]]
+name = "Core imports no settings"
+type = "forbidden"
+source_modules = ["codecraft_core"]
+forbidden_modules = ["codecraft_settings"]
 
 [dependency-groups]
 dev = [
