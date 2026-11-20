@@ -66,6 +66,8 @@ These figures were measured after the star-import status was implemented. Neithe
 
 Measured with `--language go`, on the three pinned repositories. The etcd clone was made with symbolic links enabled. The last measurement pass produced the figures below, and each pass since has matched them.
 
+The gh-aw snapshot was measured from a clone with its version-control folder present, which gives 120 excluded directories. A pinned tarball, which has no version-control folder, gives 119; the difference is that one directory.
+
 | Measure | etcd v3.7.3 | gh-aw v1.2.2 | lazydocker v0.25.2 |
 |---|---|---|---|
 | Commit | 0a173d0410a96d01091b484daae81365bbcde57e | 399a445fe2d8926c616b54b1b82a16b5b2be4445 | 7e7aadc2071d58031bf2daafca1fbd4093efc23f |
