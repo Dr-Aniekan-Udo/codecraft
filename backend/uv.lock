@@ -6,9 +6,11 @@ requires-python = ">=3.14"
 members = [
     "codecraft-analysis",
     "codecraft-api",
+    "codecraft-app",
     "codecraft-core",
     "codecraft-explain",
     "codecraft-parsing",
+    "codecraft-settings",
     "codecraft-storage",
     "codecraft-workspace",
 ]
@@ -234,6 +236,7 @@ name = "codecraft-api"
 version = "0.1.0"
 source = { editable = "packages/api" }
 dependencies = [
+    { name = "codecraft-settings" },
     { name = "codecraft-storage" },
     { name = "cryptography" },
     { name = "fastapi" },
@@ -247,6 +250,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "codecraft-settings", editable = "packages/settings" },
     { name = "codecraft-storage", editable = "packages/storage" },
     { name = "cryptography", specifier = ">=50.0.2" },
     { name = "fastapi", specifier = ">=0.162.2" },
@@ -256,6 +260,23 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.16.2" },
     { name = "pyjwt", specifier = ">=2.15.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+]
+
+[[package]]
+name = "codecraft-app"
+version = "0.1.0"
+source = { editable = "packages/app" }
+dependencies = [
+    { name = "codecraft-core" },
+    { name = "codecraft-parsing" },
+    { name = "codecraft-settings" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "codecraft-core", editable = "packages/core" },
+    { name = "codecraft-parsing", editable = "packages/parsing" },
+    { name = "codecraft-settings", editable = "packages/settings" },
 ]
 
 [[package]]
@@ -310,6 +331,17 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "jsonschema", specifier = ">=4.26.0" }]
+
+[[package]]
+name = "codecraft-settings"
+version = "0.1.0"
+source = { editable = "packages/settings" }
+dependencies = [
+    { name = "pydantic-settings" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic-settings", specifier = ">=2.16.2" }]
 
 [[package]]
 name = "codecraft-storage"

@@ -1,12 +1,124 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "bash": {
-      "uv add*": "ask",
-      "uv remove*": "ask",
-      "pnpm add*": "ask",
-      "pnpm remove*": "ask",
-      "pnpm up*": "ask"
-    }
-  }
+  "permissions": [
+    { "action": "read", "resource": "*", "effect": "allow" },
+    { "action": "read", "resource": ".env*", "effect": "deny" },
+    { "action": "read", "resource": "*/.env*", "effect": "deny" },
+
+    { "action": "edit", "resource": "*", "effect": "allow" },
+    { "action": "edit", "resource": ".env*", "effect": "deny" },
+    { "action": "edit", "resource": "*/.env*", "effect": "deny" },
+    { "action": "edit", "resource": "*pyproject.toml", "effect": "allow" },
+    { "action": "edit", "resource": "*uv.lock", "effect": "deny" },
+    { "action": "edit", "resource": "*package.json", "effect": "deny" },
+    { "action": "edit", "resource": "*pnpm-lock.yaml", "effect": "deny" },
+    { "action": "edit", "resource": "opencode.json", "effect": "deny" },
+
+    { "action": "shell", "resource": "*", "effect": "allow" },
+    { "action": "shell", "resource": "uv add *", "effect": "deny" },
+    { "action": "shell", "resource": "uv remove *", "effect": "deny" },
+    { "action": "shell", "resource": "uv lock", "effect": "deny" },
+    { "action": "shell", "resource": "uv lock --upgrade *", "effect": "deny" },
+    { "action": "shell", "resource": "uv pip install *", "effect": "deny" },
+    { "action": "shell", "resource": "uv sync --upgrade *", "effect": "deny" },
+    { "action": "shell", "resource": "pnpm add *", "effect": "deny" },
+    { "action": "shell", "resource": "pnpm remove *", "effect": "deny" },
+    { "action": "shell", "resource": "pnpm up *", "effect": "deny" },
+    { "action": "shell", "resource": "pnpm update *", "effect": "deny" },
+    { "action": "shell", "resource": "pnpm dlx *", "effect": "deny" },
+    { "action": "shell", "resource": "pip install *", "effect": "deny" },
+    { "action": "shell", "resource": "pip3 install *", "effect": "deny" },
+    {
+      "action": "shell",
+      "resource": "python -m pip install *",
+      "effect": "deny"
+    },
+    { "action": "shell", "resource": "npm install *", "effect": "deny" },
+    { "action": "shell", "resource": "npm i *", "effect": "deny" },
+    { "action": "shell", "resource": "yarn add *", "effect": "deny" },
+    { "action": "shell", "resource": "npx *", "effect": "deny" }
+  ],
+  "policies": [
+    { "action": "tool.use", "resource": "read:.env*", "effect": "deny" },
+    { "action": "tool.use", "resource": "read:*/.env*", "effect": "deny" },
+    { "action": "tool.use", "resource": "edit:.env*", "effect": "deny" },
+    { "action": "tool.use", "resource": "edit:*/.env*", "effect": "deny" },
+
+    {
+      "action": "tool.use",
+      "resource": "edit:*pyproject.toml",
+      "effect": "allow"
+    },
+    { "action": "tool.use", "resource": "edit:*uv.lock", "effect": "deny" },
+    {
+      "action": "tool.use",
+      "resource": "edit:*package.json",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "edit:*pnpm-lock.yaml",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "edit:opencode.json",
+      "effect": "deny"
+    },
+
+    { "action": "tool.use", "resource": "shell:uv add *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:uv remove *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:uv lock", "effect": "deny" },
+    {
+      "action": "tool.use",
+      "resource": "shell:uv lock --upgrade *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:uv pip install *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:uv sync --upgrade *",
+      "effect": "deny"
+    },
+    { "action": "tool.use", "resource": "shell:pnpm add *", "effect": "deny" },
+    {
+      "action": "tool.use",
+      "resource": "shell:pnpm remove *",
+      "effect": "deny"
+    },
+    { "action": "tool.use", "resource": "shell:pnpm up *", "effect": "deny" },
+    {
+      "action": "tool.use",
+      "resource": "shell:pnpm update *",
+      "effect": "deny"
+    },
+    { "action": "tool.use", "resource": "shell:pnpm dlx *", "effect": "deny" },
+    {
+      "action": "tool.use",
+      "resource": "shell:pip install *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:pip3 install *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:python -m pip install *",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "shell:npm install *",
+      "effect": "deny"
+    },
+    { "action": "tool.use", "resource": "shell:npm i *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:yarn add *", "effect": "deny" },
+    { "action": "tool.use", "resource": "shell:npx *", "effect": "deny" }
+  ]
 }
