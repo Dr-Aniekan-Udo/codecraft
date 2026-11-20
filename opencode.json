@@ -14,7 +14,17 @@
     { "action": "edit", "resource": "*pnpm-lock.yaml", "effect": "deny" },
     { "action": "edit", "resource": "opencode.json", "effect": "deny" },
 
-    { "action": "shell", "resource": "*", "effect": "allow" },
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    {
+      "action": "shell",
+      "resource": "git rev-parse HEAD",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "git --no-pager log --no-show-signature --oneline -5",
+      "effect": "allow"
+    },
     { "action": "shell", "resource": "uv add *", "effect": "deny" },
     { "action": "shell", "resource": "uv remove *", "effect": "deny" },
     { "action": "shell", "resource": "uv lock", "effect": "deny" },

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
         env_file=_ENV_FILE,
         env_file_encoding="utf-8",
         validate_default=True,
+        hide_input_in_errors=True,
         extra="ignore",
     )
 

@@ -45,7 +45,7 @@ The command-line entry point lives in codecraft_app and runs as `python -m codec
 ## Constraints, with reasons
 
 - **The parser never imports the API or the app.** A parser that depends on the web layer cannot run in a worker, and cannot be tested without it.
-- **The API never imports the parser.** When the pipeline needs the parser, it calls it through a defined function in codecraft_app, or through a worker. A direct link would have to be undone later.
+- **The API never imports the parser or codecraft_app.** When the pipeline needs the parser, it uses a worker. A direct call from the API to either package requires a documented change to these boundaries first.
 - **The command never loads a secret.** Its settings are the base class only. A bug in the command cannot expose a database or identity credential it never loaded.
 - **The core stays free of configuration and logic.** Every other package depends on it, so any change to it reaches all of them.
 

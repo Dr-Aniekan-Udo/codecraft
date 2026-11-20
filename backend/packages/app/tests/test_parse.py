@@ -112,6 +112,20 @@ def test_a_missing_parse_limit_exits_2_and_names_it(
     assert "PARSE_MAX_FILES" in capsys.readouterr().err
 
 
+def test_an_invalid_parse_limit_exits_2_without_printing_its_value(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _fake_environment(monkeypatch)
+    invalid_value = "not-a-parse-limit"
+    monkeypatch.setenv("PARSE_MAX_FILES", invalid_value)
+
+    assert main([str(tmp_path)]) == 2
+
+    error = capsys.readouterr().err
+    assert "PARSE_MAX_FILES" in error
+    assert invalid_value not in error
+
+
 def test_the_file_limit_exits_2_with_the_limit_reason(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
