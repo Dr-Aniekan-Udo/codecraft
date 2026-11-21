@@ -1,0 +1,235 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (languages typescript and javascript; tree-sitter 0.26.0; tree-sitter-typescript 0.23.2; tree-sitter-javascript 0.25.0; js resolver protocol 1; typescript 6.0.3)",
+  "python": null,
+  "go": null,
+  "typescript": {
+    "config_files": [
+      "tsconfig.json"
+    ]
+  },
+  "files": [
+    {
+      "path": "src/alias.css",
+      "folder": "src",
+      "language": null,
+      "line_count": 1,
+      "content_hash": "sha256:db70c511a8889e90a0e6309757c22e6079396ce573ca757f21e7556b53f632ce",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "src/data.json",
+      "folder": "src",
+      "language": null,
+      "line_count": 1,
+      "content_hash": "sha256:3a37782e8974c48eebf2a0517c866ad15641c53b3d31993188796b56aeb79624",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "src/logo.svg",
+      "folder": "src",
+      "language": null,
+      "line_count": 1,
+      "content_hash": "sha256:7b3bba3ed45b3afc89d0fd38e5076b1158d7747369a8517ed2b561eb4c19b077",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "src/main.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 10,
+      "content_hash": "sha256:842e864115d6b5a55f79379ec9ee109158103a0fc8f317a8cc8c3aacc74683ae",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "src/query.css",
+      "folder": "src",
+      "language": null,
+      "line_count": 1,
+      "content_hash": "sha256:84f7f463a20e81e01b68cdde010eb5fffccfea5d6e386a7dfd99cb31302d0c27",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "src/styles.css",
+      "folder": "src",
+      "language": null,
+      "line_count": 1,
+      "content_hash": "sha256:9767e91e9d4b0334e59a1d389e9801bc6a2c5c4a5500a3c2c7915687965b2c16",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "tsconfig.json",
+      "folder": ".",
+      "language": null,
+      "line_count": 8,
+      "content_hash": "sha256:53f7161c764781c737c2e3e7916864fe463b9b25b8a7a0080940165866a720ea",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "src/main.ts",
+      "target": "src/alias.css",
+      "target_kind": "file",
+      "kind": "asset_import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "path_alias",
+      "line": 5,
+      "column": 1
+    },
+    {
+      "source": "src/main.ts",
+      "target": "src/data.json",
+      "target_kind": "file",
+      "kind": "asset_import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "relative",
+      "line": 2,
+      "column": 1
+    },
+    {
+      "source": "src/main.ts",
+      "target": "src/logo.svg",
+      "target_kind": "file",
+      "kind": "asset_import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "asset",
+      "line": 3,
+      "column": 1
+    },
+    {
+      "source": "src/main.ts",
+      "target": "src/query.css",
+      "target_kind": "file",
+      "kind": "asset_import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "asset",
+      "line": 7,
+      "column": 1
+    },
+    {
+      "source": "src/main.ts",
+      "target": "src/styles.css",
+      "target_kind": "file",
+      "kind": "asset_import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "asset",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "src/main.ts",
+      "target": "src/styles.css",
+      "target_kind": "file",
+      "kind": "re_export",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "asset",
+      "line": 10,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "src/main.ts",
+      "reference": "./missing.png",
+      "reason": "asset path matches no file",
+      "line": 4,
+      "column": 1
+    }
+  ],
+  "external_references": [
+    {
+      "source": "src/main.ts",
+      "reference": "some-package/data.json",
+      "top_level": "some-package",
+      "line": 9,
+      "column": 1
+    }
+  ],
+  "excluded_references": [],
+  "coverage": {
+    "references": 10,
+    "resolved": 8,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 1,
+    "excluded": 0,
+    "failed": 1,
+    "python": null,
+    "go": null,
+    "typescript": {
+      "re_exports": 1,
+      "re_exports_resolved": 1
+    },
+    "failures_by_reason": {
+      "asset path matches no file": 1
+    },
+    "failure_examples": [
+      {
+        "source": "src/main.ts",
+        "reference": "./missing.png",
+        "reason": "asset path matches no file",
+        "line": 4,
+        "column": 1
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 7,
+    "parsed": 1,
+    "failed_parse": 0,
+    "excluded": 1,
+    "assets": 5,
+    "excluded_by_reason": {
+      "not a TypeScript or JavaScript file": 1
+    }
+  }
+}

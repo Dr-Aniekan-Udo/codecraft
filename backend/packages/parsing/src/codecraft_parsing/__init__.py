@@ -11,6 +11,7 @@ from codecraft_core.model import RepositoryParse
 
 from codecraft_parsing.go.parser import parse_go_repository
 from codecraft_parsing.python.parser import parse_python_repository
+from codecraft_parsing.typescript.parser import parse_typescript_repository
 
 
 class LanguageParser(Protocol):
@@ -26,6 +27,8 @@ class LanguageParser(Protocol):
 _PARSERS: dict[str, LanguageParser] = {
     "python": parse_python_repository,
     "go": parse_go_repository,
+    "typescript": parse_typescript_repository,
+    "javascript": parse_typescript_repository,
 }
 SUPPORTED_LANGUAGES: tuple[str, ...] = tuple(_PARSERS)
 

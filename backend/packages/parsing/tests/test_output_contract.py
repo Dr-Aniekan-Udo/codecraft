@@ -37,11 +37,16 @@ from codecraft_core import (
     PythonRepositoryDetails,
     ReferenceRecord,
     RepositoryParse,
+    ResolutionPath,
     StarImportRecord,
     StarImportStatus,
     SymbolRecord,
     SymbolStatus,
     TargetKind,
+    TypeScriptCoverageDetails,
+    TypeScriptFileDetails,
+    TypeScriptFileKind,
+    TypeScriptRepositoryDetails,
 )
 from codecraft_parsing import parse_repository as _parse_repository
 from jsonschema import Draft202012Validator  # pyright: ignore[reportMissingTypeStubs]
@@ -133,10 +138,14 @@ def test_the_schema_lists_every_field_the_model_emits() -> None:
         names = cast("list[object]", node["required"])
         return {name for name in names if isinstance(name, str)}
 
-    assert fields("file_record") == set(FileRecord.model_fields) == required("file_record")
-    assert fields("coverage") == set(Coverage.model_fields) == required("coverage")
-    assert fields("file_coverage") == set(FileCoverage.model_fields) == required("file_coverage")
-    assert fields("edge") == set(Edge.model_fields) == required("edge")
+    assert fields("file_record") == set(FileRecord.model_fields)
+    assert set(required("file_record")) == set(FileRecord.model_fields) - {"typescript"}
+    assert fields("coverage") == set(Coverage.model_fields)
+    assert set(required("coverage")) == set(Coverage.model_fields) - {"typescript"}
+    assert fields("file_coverage") == set(FileCoverage.model_fields)
+    assert set(required("file_coverage")) == set(FileCoverage.model_fields) - {"assets"}
+    assert fields("edge") == set(Edge.model_fields)
+    assert set(required("edge")) == set(Edge.model_fields) - {"resolution_path"}
     assert (
         fields("reference_record")
         == set(ReferenceRecord.model_fields)
@@ -193,12 +202,27 @@ def test_the_schema_lists_every_field_the_model_emits() -> None:
         == set(GoCoverageDetails.model_fields)
         == required("go_coverage_details")
     )
+    assert (
+        fields("typescript_file_details")
+        == set(TypeScriptFileDetails.model_fields)
+        == required("typescript_file_details")
+    )
+    assert (
+        fields("typescript_repository_details")
+        == set(TypeScriptRepositoryDetails.model_fields)
+        == required("typescript_repository_details")
+    )
+    assert (
+        fields("typescript_coverage_details")
+        == set(TypeScriptCoverageDetails.model_fields)
+        == required("typescript_coverage_details")
+    )
     root_properties = cast("Mapping[str, object]", schema["properties"])
     root_required = cast("list[object]", schema["required"])
     assert set(root_properties) == set(RepositoryParse.model_fields)
     assert {name for name in root_required if isinstance(name, str)} == set(
         RepositoryParse.model_fields
-    )
+    ) - {"typescript"}
 
 
 def test_the_schema_enums_match_the_models() -> None:
@@ -234,6 +258,15 @@ def test_the_schema_enums_match_the_models() -> None:
     assert enum("file_record", "adapter_role") == {value.value for value in AdapterRole}
     assert enum("go_build_constraint", "source") == {value.value for value in GoConstraintSource}
     assert enum("go_module", "source") == {value.value for value in GoModuleSource}
+    assert set(
+        cast("list[object]", cast("Mapping[str, object]", definitions["resolution_path"])["enum"])
+    ) == {value.value for value in ResolutionPath}
+    assert set(
+        cast(
+            "list[object]",
+            cast("Mapping[str, object]", definitions["typescript_file_kind"])["enum"],
+        )
+    ) == {value.value for value in TypeScriptFileKind}
 
 
 def test_the_validator_rejects_broken_documents() -> None:
@@ -369,7 +402,7 @@ _COVERAGE_COUNTS = (
     "excluded",
     "failed",
 )
-_FILE_COVERAGE_COUNTS = ("found", "parsed", "failed_parse", "excluded")
+_FILE_COVERAGE_COUNTS = ("found", "parsed", "failed_parse", "excluded", "assets")
 
 
 def _coverage_document() -> dict[str, object]:

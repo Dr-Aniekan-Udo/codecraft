@@ -20,9 +20,27 @@ type Count = Annotated[int, Field(ge=0)]
 type ContentHash = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 
 
+def _omit_when_none(value: object) -> bool:
+    """Leave language-specific fields out of output that does not use them.
+
+    Python and Go output is fixed. A new optional section must not appear as a
+    null there, so its field is omitted rather than serialized.
+    """
+
+    return value is None
+
+
+def _omit_when_zero(value: object) -> bool:
+    """Leave a count out of output where its language does not use it."""
+
+    return value == 0
+
+
 class Language(StrEnum):
     PYTHON = "python"
     GO = "go"
+    TYPESCRIPT = "typescript"
+    JAVASCRIPT = "javascript"
 
 
 class PackageKind(StrEnum):
@@ -41,6 +59,9 @@ class EdgeKind(StrEnum):
     DYNAMIC_IMPORT = "dynamic_import"
     BLANK_IMPORT = "blank_import"
     DOT_IMPORT = "dot_import"
+    RE_EXPORT = "re_export"
+    TYPE_ONLY_IMPORT = "type_only_import"
+    ASSET_IMPORT = "asset_import"
 
 
 class TargetKind(StrEnum):
@@ -52,6 +73,29 @@ class TargetKind(StrEnum):
 
     FILE = "file"
     PACKAGE = "package"
+
+
+class ResolutionPath(StrEnum):
+    """How the TypeScript compiler reached a resolved file.
+
+    One label is recorded per resolved edge, using the precedence stated in the
+    output contract. Python and Go edges carry no resolution path.
+    """
+
+    PATH_ALIAS = "path_alias"
+    WORKSPACE_PACKAGE = "workspace_package"
+    PACKAGE_ENTRY_POINT = "package_entry_point"
+    INDEX_FILE = "index_file"
+    EXTENSION = "extension"
+    RELATIVE = "relative"
+    ASSET = "asset"
+
+
+class TypeScriptFileKind(StrEnum):
+    """Whether a TypeScript or JavaScript file is source or a declaration."""
+
+    SOURCE = "source"
+    DECLARATION = "declaration"
 
 
 class GoConstraintSource(StrEnum):
@@ -140,6 +184,19 @@ class PythonFileDetails(BaseModel):
     is_package: bool
 
 
+class TypeScriptFileDetails(BaseModel):
+    """The TypeScript or JavaScript facts for one file record.
+
+    The section is named once for both languages. ``kind`` separates a source
+    file from a declaration file; the file record's ``language`` distinguishes
+    TypeScript from JavaScript.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: TypeScriptFileKind
+
+
 class GoBuildConstraint(BaseModel):
     """One build constraint as written, and which form it was written in."""
 
@@ -211,6 +268,19 @@ class GoCoverageDetails(BaseModel):
     packages: Count
 
 
+class TypeScriptCoverageDetails(BaseModel):
+    """The TypeScript and JavaScript part of the coverage report.
+
+    Re-exports are also ordinary references in the denominator. These two
+    figures are a subset view: how many were found, and how many resolved.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    re_exports: Count
+    re_exports_resolved: Count
+
+
 class FileRecord(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -225,6 +295,7 @@ class FileRecord(BaseModel):
     adapter_role: AdapterRole
     python: PythonFileDetails | None
     go: GoFileDetails | None = None
+    typescript: TypeScriptFileDetails | None = Field(default=None, exclude_if=_omit_when_none)
 
     @model_validator(mode="after")
     def _node_and_exclusion_agree(self) -> Self:
@@ -239,17 +310,27 @@ class FileRecord(BaseModel):
             raise ValueError("python details belong only to a Python file")
         if self.go is not None and self.language != Language.GO:
             raise ValueError("go details belong only to a Go file")
+        if self.typescript is not None and self.language not in (
+            Language.TYPESCRIPT,
+            Language.JAVASCRIPT,
+        ):
+            raise ValueError("typescript details belong only to a TypeScript or JavaScript file")
         if self.is_node:
             if self.language == Language.PYTHON:
                 if self.python is None:
                     raise ValueError("a Python node carries its Python details")
-                if self.go is not None:
-                    raise ValueError("a Python node carries no Go details")
+                if self.go is not None or self.typescript is not None:
+                    raise ValueError("a Python node carries no other language details")
             elif self.language == Language.GO:
                 if self.go is None:
                     raise ValueError("a Go node carries its Go details")
-                if self.python is not None:
-                    raise ValueError("a Go node carries no Python details")
+                if self.python is not None or self.typescript is not None:
+                    raise ValueError("a Go node carries no other language details")
+            elif self.language in (Language.TYPESCRIPT, Language.JAVASCRIPT):
+                if self.typescript is None:
+                    raise ValueError("a TypeScript or JavaScript node carries its details")
+                if self.python is not None or self.go is not None:
+                    raise ValueError("a TypeScript or JavaScript node carries no other details")
         return self
 
 
@@ -271,6 +352,7 @@ class Edge(BaseModel):
     kind: EdgeKind
     condition: ImportCondition | None
     alias: str | None = None
+    resolution_path: ResolutionPath | None = Field(default=None, exclude_if=_omit_when_none)
     line: Position
     column: Position
 
@@ -381,6 +463,7 @@ class Coverage(BaseModel):
     failed: Count
     python: PythonCoverageDetails | None = None
     go: GoCoverageDetails | None = None
+    typescript: TypeScriptCoverageDetails | None = Field(default=None, exclude_if=_omit_when_none)
     failures_by_reason: dict[str, Count]
     failure_examples: list[ReferenceRecord]
 
@@ -401,15 +484,23 @@ class Coverage(BaseModel):
 
 
 class FileCoverage(BaseModel):
+    """Every file counted into exactly one outcome.
+
+    An asset file is a node, but it is not parsed as source. It is counted in
+    ``assets`` and excluded from ``parsed``. The field is omitted when zero, so
+    Python and Go output does not change.
+    """
+
     found: Count
     parsed: Count
     failed_parse: Count
     excluded: Count
+    assets: Count = Field(default=0, exclude_if=_omit_when_zero)
     excluded_by_reason: dict[str, Count]
 
     @model_validator(mode="after")
     def _files_add_up(self) -> Self:
-        accounted = self.parsed + self.failed_parse + self.excluded
+        accounted = self.parsed + self.failed_parse + self.excluded + self.assets
         if accounted != self.found:
             raise ValueError(f"file outcomes {accounted} do not add up to {self.found}")
         return self
@@ -424,6 +515,18 @@ class PythonRepositoryDetails(BaseModel):
     import_root_rule: str
 
 
+class TypeScriptRepositoryDetails(BaseModel):
+    """The TypeScript and JavaScript facts about the repository as a whole.
+
+    The section is named once for the pair. ``config_files`` lists every nearest
+    configuration file the resolver used, repository-relative and sorted.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    config_files: tuple[str, ...]
+
+
 class RepositoryParse(BaseModel):
     """The full output for one repository, as every later phase reads it.
 
@@ -436,6 +539,7 @@ class RepositoryParse(BaseModel):
     parser_version: str
     python: PythonRepositoryDetails | None = None
     go: GoRepositoryDetails | None = None
+    typescript: TypeScriptRepositoryDetails | None = Field(default=None, exclude_if=_omit_when_none)
     files: list[FileRecord]
     excluded_directories: list[ExcludedDirectory]
     edges: list[Edge]

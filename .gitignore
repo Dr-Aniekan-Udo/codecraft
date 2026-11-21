@@ -14,4 +14,7 @@ coverage/
 supabase/.branches/
 supabase/.temp/
 
+!backend/fixtures/typescript/07-dependency-folder/repo/node_modules/
+!backend/fixtures/typescript/07-dependency-folder/repo/node_modules/**
+
 

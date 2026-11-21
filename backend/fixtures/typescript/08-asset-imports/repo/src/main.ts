@@ -1,0 +1,10 @@
+import "./styles.css";
+import "./data.json";
+import "./logo.svg";
+import "./missing.png";
+import "~/alias.css";
+import "~/data.json";
+import "./query.css";
+import "./query.css?inline";
+import "some-package/data.json";
+export * from "./styles.css";

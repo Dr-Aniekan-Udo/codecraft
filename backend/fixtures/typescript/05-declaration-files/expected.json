@@ -1,0 +1,110 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (languages typescript and javascript; tree-sitter 0.26.0; tree-sitter-typescript 0.23.2; tree-sitter-javascript 0.25.0; js resolver protocol 1; typescript 6.0.3)",
+  "python": null,
+  "go": null,
+  "typescript": {
+    "config_files": []
+  },
+  "files": [
+    {
+      "path": "src/generated.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 2,
+      "content_hash": "sha256:69b50d426dcf9cdbb0964cafa6711c4a4afe545ef74b3e0b6827b6047f612ebc",
+      "is_node": false,
+      "excluded_reason": "generated file: @generated",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "src/index.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 2,
+      "content_hash": "sha256:4655b95afca880cff0aed21b0c9d7234694905cd874c5d6190a282e98718366f",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "src/types.d.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:07d8e822edb7f95d92b695a6c435614858a0905a4d0d43c6b59063bf5b915df8",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "declaration"
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "src/index.ts",
+      "target": "src/types.d.ts",
+      "target_kind": "file",
+      "kind": "import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "extension",
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [
+    {
+      "source": "src/index.ts",
+      "reference": "./generated",
+      "reason": "generated file: @generated",
+      "line": 2,
+      "column": 1
+    }
+  ],
+  "coverage": {
+    "references": 2,
+    "resolved": 1,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 1,
+    "failed": 0,
+    "python": null,
+    "go": null,
+    "typescript": {
+      "re_exports": 0,
+      "re_exports_resolved": 0
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 3,
+    "parsed": 2,
+    "failed_parse": 0,
+    "excluded": 1,
+    "excluded_by_reason": {
+      "generated file: @generated": 1
+    }
+  }
+}

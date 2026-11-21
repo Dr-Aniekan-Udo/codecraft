@@ -94,3 +94,79 @@ Reading the figures:
 - **Go release tags** are false, and no file was excluded by one in these repositories.
 
 Any later change to these figures must be explained against this section. A change caused by a new Go parser rule is expected only where a pinned repository contains the construct the rule covers. The pinned repositories do contain readable imports in failed files, and those are counted as failed references, as the figures show. They contain no conflicting package and no malformed module file.
+
+## TypeScript and JavaScript, Part 3c
+
+Measured with `--language typescript`. Cal.diy was cloned with `core.symlinks=true`, so its symbolic links are read as links and never as files. The parse limits were 50,000 files and 2,000,000 bytes per file, from `PARSE_MAX_FILES` and `PARSE_MAX_FILE_BYTES`. Node was 22.14.0.
+
+### Cal.diy
+
+- Commit: `1c193cca8682b33b9866c792186033f7ef886682`
+- Date: 1 March 2026
+- Release: v6.2.0
+
+| Measure | Figure |
+|---|---|
+| Files found | 10,337 |
+| Files parsed | 7,354 |
+| Files failed to parse | 42 |
+| Files excluded | 2,834 (2,799 not a TypeScript or JavaScript file, 22 over the size limit, 10 environment files, 2 symbolic links, 1 generated file) |
+| Asset files | 107 |
+| Excluded directories | 5 (4 symbolic links, 1 version control metadata) |
+| Edges | 30,590 |
+| References | 42,532 |
+| References resolved inside the repository | 31,230 |
+| External references | 8,757 |
+| Excluded references | 1 |
+| Failed references | 2,544 (2,227 workspace package entry not found, 294 file has a syntax error, 18 module not found, 1 asset path matches no file, 1 non-literal dynamic import, 3 workspace package subpath is not exported) |
+| Re-exports found | 1,239 |
+| Re-exports resolved | 1,218 |
+| Configuration files used | 30 |
+| Schema errors | 0 |
+
+Check: 10,337 = 7,354 parsed + 42 failed + 2,834 excluded + 107 assets. 42,532 = 31,230 resolved + 8,757 external + 1 excluded + 2,544 failed.
+
+### freeCodeCamp
+
+- Commit: `062c1053bdfdecb846753cbf31fb39d0674a7e1e`
+- Date: 17 November 2026
+- Release: none. The repository publishes no releases, so the commit is the pin.
+
+| Measure | Figure |
+|---|---|
+| Files found | 19,851 |
+| Files parsed | 1,164 |
+| Files failed to parse | 15 |
+| Files excluded | 18,557 (18,553 not a TypeScript or JavaScript file, 4 over the size limit) |
+| Asset files | 115 |
+| Excluded directories | 1 (version control metadata) |
+| Edges | 2,567 |
+| References | 5,425 |
+| References resolved inside the repository | 2,572 |
+| External references | 2,458 |
+| Excluded references | 0 |
+| Failed references | 395 (269 workspace package entry not found, 51 file has a syntax error, 61 asset path matches no file, 10 module not found, 4 non-literal dynamic imports) |
+| Re-exports found | 94 |
+| Re-exports resolved | 90 |
+| Configuration files used | 11 |
+| Schema errors | 0 |
+
+Check: 19,851 = 1,164 parsed + 15 failed + 18,557 excluded + 115 assets. 5,425 = 2,572 resolved + 2,458 external + 0 excluded + 395 failed.
+
+Reading the figures:
+
+- **Files found** is parsed, failed, excluded and asset files together. An asset file is a node that is not parsed as source.
+- **Excluded** for Cal.diy is 2,799 files that are not TypeScript or JavaScript, 22 over the size limit, 10 environment files, 2 symbolic links and 1 generated file. For freeCodeCamp it is 18,553 files that are not TypeScript or JavaScript and 4 over the size limit.
+- **Failed to parse** counts files the grammar cannot read. Each carries a reason and a position. A readable import in one of those files that points inside the repository is a failed reference with reason `file has a syntax error`; one that points outside stays external. That rule accounts for 294 Cal.diy and 51 freeCodeCamp failed references.
+- **Generated file** counts a file whose marker matched. Cal.diy has one, excluded with `generated file: @generated`; a reference to it is an excluded reference with that reason.
+- **Workspace package entry not found** counts imports of a workspace package whose entry or subpath is generated or built and is absent from a fresh clone. For Cal.diy the example is `@calcom/prisma/enums`; for freeCodeCamp it is `@freecodecamp/shared/config/certification-settings`, whose exports point at `dist/`.
+- **Workspace package subpath is not exported** counts an import of a subpath that a package's `exports` does not declare. Cal.diy has 3; freeCodeCamp has none.
+- **Asset path matches no file** counts asset imports whose target is absent. For Cal.diy it is one generated CSS file; for freeCodeCamp it is 61 paths, including a local `env.json` that the repository does not commit.
+- **Module not found** counts references whose target does not exist at the pin. For Cal.diy it is 18; for freeCodeCamp it is 10, all `.woff` font files, which are not asset files in this part.
+- **Re-exports** are counted separately. The unresolved 21 Cal.diy and 4 freeCodeCamp re-exports carry one of the reasons above.
+- Cal.diy's one excluded reference points at an `.mjs` file, which is not one of the four extensions read in this part.
+- **freeCodeCamp and CommonJS.** `require()` loading is phase 9. Files that load code that way show those dependencies as absent from edges and from unresolved records by design.
+
+These figures were measured after the query-suffix, bare-specifier and review fixes, with parser_version `codecraft-parsing 0.1.0 (languages typescript and javascript; tree-sitter 0.26.0; tree-sitter-typescript 0.23.2; tree-sitter-javascript 0.25.0; js resolver protocol 1; typescript 6.0.3)`.
+
+Any later change to these figures must be explained against this section. A change caused by a new TypeScript or JavaScript rule is expected only where a pinned repository contains the construct the rule covers.
