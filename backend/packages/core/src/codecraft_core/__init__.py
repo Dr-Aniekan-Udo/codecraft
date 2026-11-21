@@ -26,11 +26,16 @@ from codecraft_core.model import (
     PythonRepositoryDetails,
     ReferenceRecord,
     RepositoryParse,
+    ResolutionPath,
     StarImportRecord,
     StarImportStatus,
     SymbolRecord,
     SymbolStatus,
     TargetKind,
+    TypeScriptCoverageDetails,
+    TypeScriptFileDetails,
+    TypeScriptFileKind,
+    TypeScriptRepositoryDetails,
 )
 
 __all__ = [
@@ -61,9 +66,14 @@ __all__ = [
     "PythonRepositoryDetails",
     "ReferenceRecord",
     "RepositoryParse",
+    "ResolutionPath",
     "StarImportRecord",
     "StarImportStatus",
     "SymbolRecord",
     "SymbolStatus",
     "TargetKind",
+    "TypeScriptCoverageDetails",
+    "TypeScriptFileDetails",
+    "TypeScriptFileKind",
+    "TypeScriptRepositoryDetails",
 ]

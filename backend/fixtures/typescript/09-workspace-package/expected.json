@@ -1,0 +1,244 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (languages typescript and javascript; tree-sitter 0.26.0; tree-sitter-typescript 0.23.2; tree-sitter-javascript 0.25.0; js resolver protocol 1; typescript 6.0.3)",
+  "python": null,
+  "go": null,
+  "typescript": {
+    "config_files": [
+      "apps/app/tsconfig.json"
+    ]
+  },
+  "files": [
+    {
+      "path": "apps/app/lib/helper.ts",
+      "folder": "apps/app/lib",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:f017cf92f05e097238bd7bdba695cd0a83b4c4729384b1ad79000b5674ce4a27",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "apps/app/main.ts",
+      "folder": "apps/app",
+      "language": "typescript",
+      "line_count": 4,
+      "content_hash": "sha256:cbe887da21ba3d9c190d95fa79a34b85eada187edd9662a97737a632fb1cb2c1",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "apps/app/tsconfig.json",
+      "folder": "apps/app",
+      "language": null,
+      "line_count": 10,
+      "content_hash": "sha256:616cd18ec8eaf05ad04bb93ae5e9e8583672084c37b2089206f077d23d3cad50",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "package.json",
+      "folder": ".",
+      "language": null,
+      "line_count": 5,
+      "content_hash": "sha256:cb933d118ddef8cf9698c79e540390f70be5cd1dd62cae6f4149d460fe74f984",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "packages/config/package.json",
+      "folder": "packages/config",
+      "language": null,
+      "line_count": 5,
+      "content_hash": "sha256:455a94ebba96bfffa35d01ece0c3636ad66739d1344d402020bd21063ce92299",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "packages/config/tsconfig.json",
+      "folder": "packages/config",
+      "language": null,
+      "line_count": 6,
+      "content_hash": "sha256:4096c2af365e2307d18a48f8b03ab39bc9a3e32bad6fb874926675c982bc52fc",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "packages/ui/index.ts",
+      "folder": "packages/ui",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:fe18fcf9b3e08031b6d6aa0b8c6b5a7b695dece53f46e6e2c7861c9290420028",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "packages/ui/nested.ts",
+      "folder": "packages/ui",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:eee4c56c34a8a9408765d49b4b932f37e8efd1840064d9612b27e9067a98ac18",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "packages/ui/package.json",
+      "folder": "packages/ui",
+      "language": null,
+      "line_count": 9,
+      "content_hash": "sha256:90d8c934976a79497303eef5bfa30e33c7f91877e723f74aba9247a2e0c29ff4",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "packages/ui/src/nested.ts",
+      "folder": "packages/ui/src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:04d61e815b2886a887b4a8b56175de87d6fc41d5ef55b1352cd3d06fbdae875b",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "apps/app/main.ts",
+      "target": "apps/app/lib/helper.ts",
+      "target_kind": "file",
+      "kind": "import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "path_alias",
+      "line": 2,
+      "column": 1
+    },
+    {
+      "source": "apps/app/main.ts",
+      "target": "packages/ui/index.ts",
+      "target_kind": "file",
+      "kind": "import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "workspace_package",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "apps/app/main.ts",
+      "target": "packages/ui/src/nested.ts",
+      "target_kind": "file",
+      "kind": "import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "path_alias",
+      "line": 3,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [
+    {
+      "source": "apps/app/main.ts",
+      "reference": "@fixture/ui/undeclared",
+      "reason": "workspace package subpath is not exported",
+      "line": 4,
+      "column": 1
+    }
+  ],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 4,
+    "resolved": 3,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 1,
+    "python": null,
+    "go": null,
+    "typescript": {
+      "re_exports": 0,
+      "re_exports_resolved": 0
+    },
+    "failures_by_reason": {
+      "workspace package subpath is not exported": 1
+    },
+    "failure_examples": [
+      {
+        "source": "apps/app/main.ts",
+        "reference": "@fixture/ui/undeclared",
+        "reason": "workspace package subpath is not exported",
+        "line": 4,
+        "column": 1
+      }
+    ]
+  },
+  "file_coverage": {
+    "found": 10,
+    "parsed": 5,
+    "failed_parse": 0,
+    "excluded": 5,
+    "excluded_by_reason": {
+      "not a TypeScript or JavaScript file": 5
+    }
+  }
+}

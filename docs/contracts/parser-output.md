@@ -18,6 +18,7 @@ at the same three levels.
 | `parser_version` | string | Parser, binding and grammar versions that produced the output. |
 | `python` | Python repository details or null | Import root and the rule that chose it. |
 | `go` | Go repository details or null | Build context and every in-repository module. |
+| `typescript` | TypeScript and JavaScript repository details, or absent | Every nearest configuration file the resolver used. One section serves both languages. |
 | `files` | array of file record | Every regular file and symbolic-link record outside a pruned directory, sorted by `path`. |
 | `excluded_directories` | array of `{path, reason}` | Pruned directories, sorted by `path`, with a trailing `/`. An unlistable repository root is `.`. |
 | `edges` | array of edge | Unique connections, sorted. |
@@ -50,9 +51,9 @@ state the same bounds.
 ## File record
 
 `path` is POSIX and relative to the repository root. `folder` is its POSIX parent, `.` at
-the root. `language` is `python`, `go` or null. `line_count` is `len(text.splitlines())` for a
-`.py` file that decodes. A `.pyi` stub, every other file, and a `.py` that does not decode
-count the raw bytes split into lines.
+the root. `language` is `python`, `go`, `typescript`, `javascript` or null. `line_count` is
+`len(text.splitlines())` for a `.py` file that decodes. A `.pyi` stub, every other file, and a
+`.py` that does not decode count the raw bytes split into lines.
 
 `content_hash` is `sha256:<hex>`: lowercase hex of the raw bytes. It is null for an
 environment file, a symbolic link, a file over the size limit and a file that cannot be
@@ -108,6 +109,30 @@ A Python node has a null `go` section and a Go node has a null `python` section;
 and the model both enforce this. A Go file excluded by build constraints is not a node but
 still carries its `go` details, so the constraints and their reason stay visible.
 
+A TypeScript or JavaScript node carries non-null `typescript` details. The details section
+is named once for the pair; the file record's `language` says which one it is. Python and
+Go records omit the `typescript` key entirely, so their output does not change.
+
+An asset file imported by TypeScript or JavaScript is also a node. Its `language` is null,
+`is_node` is true, `excluded_reason` is null, and it carries no language details. It is not
+parsed as source. `file_coverage.assets` counts it; it is not counted in `parsed`. An asset
+edge is valid because its target is a node, and the asset is a real file in the input.
+
+A TypeScript or JavaScript file is excluded as generated when one of these markers appears
+in its first 10 lines, case-insensitively: `@generated`, `DO NOT EDIT`, `auto-generated`,
+or `This file was generated`. Its `excluded_reason` is exactly `generated file: <marker>`,
+where `<marker>` is the marker as written in that list. It is not a node and is not parsed.
+A reference that resolves to it is an excluded reference with the same reason.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `kind` | `source` or `declaration` | Source file, or declaration file such as `.d.ts`. A declaration file is a node with this kind. |
+
+A TypeScript or JavaScript file that is not a node may omit the `typescript` section. A node
+without it is invalid. The top-level `typescript` section holds `config_files`: every nearest
+configuration file the resolver used, repository-relative and sorted. It is empty when no
+configuration file was found.
+
 ## Edge
 
 An edge exists only when a reference resolves to a real file or package folder in the
@@ -118,16 +143,30 @@ input.
 | `source` | string | File path the edge starts from. |
 | `target` | string | File path or package folder it points to. |
 | `target_kind` | `file` or `package` | Whether `target` names one file or a package folder. |
-| `kind` | `import`, `dynamic_import`, `blank_import` or `dot_import` | How the reference was written. |
+| `kind` | `import`, `dynamic_import`, `blank_import`, `dot_import`, `re_export`, `type_only_import` or `asset_import` | How the reference was written. |
 | `condition` | `type_only`, `optional`, `lazy` or null | Guard the import sits under. |
 | `alias` | string or null | The alias written on the import, or null when none is written. |
+| `resolution_path` | `path_alias`, `workspace_package`, `package_entry_point`, `index_file`, `extension`, `relative`, `asset` or absent | How the TypeScript compiler or workspace map reached the file. Present only on a resolved TypeScript or JavaScript edge. |
 | `line`, `column` | integer | One-based start of the import statement or dynamic call. |
 
-`condition` is only `type_only`, `optional`, `lazy` or null, and it applies to Python
-imports. A guarded import is never a separate kind: an import under `if TYPE_CHECKING`,
-inside a `try` block, or inside a function body keeps `kind: import` (or
-`dynamic_import`) and records how it is guarded only in `condition`. Consumers read the
-kind to know it is an import, and the condition to know when it runs.
+`resolution_path` has exactly these values:
+
+| Value | Meaning |
+|---|---|
+| `path_alias` | The nearest configuration's `paths` or `baseUrl` selected the file. This wins over a workspace package and an asset fallback. |
+| `workspace_package` | The compiler could not resolve the bare specifier without a dependency folder, and the workspace map's entry file was used. |
+| `package_entry_point` | The compiler selected a package's `package.json` entry (`exports`, `main` or `types`), including a dependency package. |
+| `index_file` | Directory resolution selected an index file. |
+| `extension` | The compiler added a file suffix to a specifier that did not already name the resolved file, for example `./b` resolving to `b.ts`. |
+| `relative` | The specifier named an existing file directly with its explicit extension, for example `./b.ts` resolving to `b.ts`; no alias, package, index or added-extension step was needed. |
+| `asset` | Exact-path asset resolution, used only after compiler and configured-alias resolution failed for a literal asset extension. It is not a compiler result. |
+
+`condition` is only `type_only`, `optional`, `lazy` or null. For Python imports it records
+the guard the import sits under. A type-only re-export uses `type_only`; `optional` and
+`lazy` do not occur outside Python. A guarded import is never a separate kind: an import
+under `if TYPE_CHECKING`, inside a `try` block, or inside a function body keeps
+`kind: import` (or `dynamic_import`) and records how it is guarded only in `condition`.
+Consumers read the kind to know it is an import, and the condition to know when it runs.
 
 Python edges use `kind: import` or `dynamic_import`, `target_kind: file`, and a null
 `alias`; Python aliases are not currently recorded. Go edges use `kind: import`,
@@ -135,10 +174,20 @@ Python edges use `kind: import` or `dynamic_import`, `target_kind: file`, and a 
 alias when one is written. A blank or dot import's form is in `kind`, so its `alias` is
 null. An alias is never a kind.
 
+TypeScript and JavaScript edges use `target_kind: file`. A plain import is `import`; a
+type-only import is `type_only_import`; an import written with `import()` is
+`dynamic_import`; a re-export (`export * from` or `export { x } from`) is `re_export`; and
+an import of JSON, CSS, SVG or an image is `asset_import`. A type-only re-export is
+`re_export` with `condition: type_only`. A re-export of an asset is `re_export` with
+`resolution_path: asset`; it counts in both re-export figures. Every resolved TypeScript
+or JavaScript edge carries its `resolution_path`; Python and Go edges omit the key. An
+asset edge points at the asset's node, which is a real file in the input.
+
 Edges are unique by `(source, target, target_kind, kind, condition, alias)`; when the
-same connection is written more than once, the earliest location is kept. Sorted by
-`(source, target, target_kind, kind, condition, alias, line, column)`, with null condition
-and null alias first.
+same connection is written more than once, the earliest location is kept, and its
+`resolution_path` is the one recorded. Sorted by
+`(source, target, target_kind, kind, condition, alias, line, column)`, with null
+condition and alias first.
 
 An explicit import always draws its edge, including an import that names the file's own
 package or module. A relative import's base that names the file's own package or an
@@ -352,6 +401,98 @@ cgo pseudo-package is `cgo`. Go has no symbol imports or
 star imports, so `symbols` and `star_imports` stay 0. The cgo category is its own outcome
 and is included in the denominator.
 
+## TypeScript and JavaScript resolution
+
+Resolution is the TypeScript compiler's, reached through the helper protocol in
+`backend/packages/parsing/js/resolver/protocol.md`. The parser never reimplements
+resolution. Every path below is repository-relative and POSIX.
+
+- A plain import, re-export, literal dynamic import and type-only import are resolved by
+  the compiler's resolver. A type-only import keeps its own kind; a type-only re-export is
+  `re_export` with `condition: type_only`.
+- A non-literal dynamic import is unresolved with the existing reason
+  `non-literal dynamic import`. The call text is recorded as in the reference record rules.
+- A bare specifier the helper did not resolve is external with its package name, unless
+  the helper reports that a configured alias matched and failed. Then it is unresolved with
+  `path alias matches no configured path`.
+- A bare specifier is never classified as an asset by extension. If it names no workspace
+  package, it is external with its package name.
+- A configured alias whose target is inside a dependency folder is external with the
+  specifier's package name.
+- A `?query` or `#fragment` suffix is removed before resolving the path. The reference
+  record keeps the specifier as written.
+- A specifier using an asset extension is tried by the compiler and its configured
+  aliases first. If neither resolves it, exact-path asset resolution is the fallback,
+  because the compiler does not resolve CSS, SVG or images. It draws `asset_import`; a
+  missing file is unresolved with `asset path matches no file`.
+- Re-exports are never shortened silently. Each resolved re-export draws its edge; each
+  unresolved one is a failed reference with its reason. A re-export of an asset is
+  `kind: re_export`, `resolution_path: asset`, and counts in both re-export figures.
+- Declaration files are nodes with `typescript.kind: declaration`.
+- A file the grammar cannot read carries `parse_failure.reason` `syntax error` with its
+  position, or `cannot decode source` with null position.
+- A resolved target that is an excluded file or lands in a pruned directory is an excluded
+  reference with that file or directory reason, never `module not found` or
+  `asset path matches no file`.
+- Dependency folders are excluded with `dependency installation`; their files are not
+  nodes. A bare specifier whose compiler answer lands inside a dependency folder is
+  external with its package name, not an excluded reference and not an edge. A non-bare
+  import that lands there is an excluded reference with reason `dependency installation`.
+- A bare specifier that names a workspace package resolves to its entry file inside the
+  repository, using `exports`, then `types` or `typings`, then `main` or `module`. A
+  package-name `extends` resolves to its file inside the repository. The compiler is tried
+  first; the workspace map is a fallback for a bare specifier the compiler cannot resolve
+  without a dependency folder. A workspace package never falls through to a dependency
+  folder. When a package declares `exports`, a subpath it does not declare is unresolved
+  with `workspace package subpath is not exported`; there is no physical fallback.
+- A workspace package file or configuration path that contains `..` or leaves the
+  repository is unresolved with `workspace path outside the repository`.
+- A symbolic-link configuration or workspace file is not read. The skip is recorded by the
+  file record with reason `symbolic link`.
+- A path alias that shadows a workspace package name wins. The compiler's answer is the
+  edge, with `resolution_path: path_alias` or the compiler's own path.
+
+`resolution_path` records one label per resolved edge. When more than one applies, the
+first in this order wins: `path_alias`, `workspace_package`, `package_entry_point`,
+`index_file`, `extension`, `relative`, `asset`. `workspace_package` is a fallback only: it
+is used when the compiler could not resolve a bare specifier without a dependency folder.
+`asset` is the last fallback, used only for an asset reference after compiler and
+configured-alias resolution fail. A resolved path outside the repository is not an edge;
+it is unresolved with `resolved path is outside the repository`, or external when the
+specifier was bare.
+
+The TypeScript and JavaScript parser can emit these named reasons:
+
+| Reason | Meaning |
+|---|---|
+| `module not found` | The compiler resolved nothing and no configured alias matched. |
+| `path alias matches no configured path` | A configured alias prefix matched but produced no file. |
+| `workspace package entry not found` | A workspace package matched but no entry file exists. |
+| `workspace package subpath is not exported` | A package declares `exports` and the requested subpath is not declared. |
+| `workspace configuration file not found` | A package-name `extends` matched a workspace package but its file does not exist. |
+| `workspace path outside the repository` | A workspace package file or configuration path contains `..` or leaves the repository. |
+| `asset path matches no file` | An asset specifier has no file at its exact path. |
+| `non-literal dynamic import` | The argument to `import()` is not a literal string. |
+| `file has a syntax error` | A reference in a file the grammar could not read points inside the repository. |
+| `syntax error` | A file failed to parse; the position is recorded. |
+| `cannot decode source` | A file's bytes are not UTF-8; position is null. |
+| `generated file: <marker>` | A file carries a generated marker; `<marker>` is the canonical marker from the list. |
+| `symbolic link` | A symbolic-link file or configuration/workspace file was skipped. |
+| `configuration file cannot be read` | A nearest configuration file could not be read. |
+| `configuration file exceeds size limit` | A configuration file is over the parser's byte limit. |
+| `configuration file has invalid syntax` | A configuration file is not valid JSON with comments and trailing commas. |
+| `resolved path is outside the repository` | The compiler returned a path outside the repository. |
+| `js resolver is missing` | The helper or Node executable is missing. |
+| `js resolver failed` | The helper exited non-zero or wrote no output. |
+| `js resolver returned an invalid response` | The helper's output is not a valid response document. |
+| `js resolver rejected the protocol version` | The helper refused the protocol version. |
+
+Every re-export is one reference in the coverage denominator: resolved re-exports count in
+`resolved`, unresolved ones in `failed`. `typescript.re_exports` is the number found, and
+`typescript.re_exports_resolved` is the number that resolved. Neither is an outcome and
+neither is added to the denominator. A type-only import is counted like any other reference,
+with `type_only_import` as its kind.
+
 ## Coverage
 
 `references` is the denominator: `resolved + symbols + star_imports + cgo + external + excluded + failed`.
@@ -379,11 +520,22 @@ reference, counted here and not again in `resolved`, `external` or `failed`.
 |---|---|---|
 | `packages` | integer | Distinct (folder, package name) pairs among Go nodes, including test packages. A node with no package name is not counted. |
 
+`typescript` is the TypeScript and JavaScript coverage object, or absent:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `re_exports` | integer | Re-exports found, resolved or not. |
+| `re_exports_resolved` | integer | Re-exports that resolved to a real file. |
+
+The `typescript` key is absent from Python and Go output.
+
 `failures_by_reason` is a sorted object of reason to count. `failure_examples` holds the
 first five unresolved records in sorted order; the full list is in
 `unresolved_references`.
 
-`file_coverage`: `found = parsed + failed_parse + excluded`. `excluded_by_reason` is a
+`file_coverage`: `found = parsed + failed_parse + excluded + assets`. An asset node is
+counted in `assets` and not in `parsed`, because it is not parsed as source. `assets` is
+omitted when zero, so Python and Go output does not change. `excluded_by_reason` is a
 sorted object of reason to count.
 
 ## Ordering

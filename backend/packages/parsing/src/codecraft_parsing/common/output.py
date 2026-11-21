@@ -150,11 +150,13 @@ def _cgo_key(record: CgoReference) -> tuple[str, int, int, str]:
 
 def _file_coverage(files: Sequence[FileRecord]) -> FileCoverage:
     nodes = [record for record in files if record.is_node]
+    source_nodes = [record for record in nodes if record.language is not None]
     return FileCoverage(
         found=len(files),
-        parsed=sum(1 for record in nodes if record.parse_failure is None),
-        failed_parse=sum(1 for record in nodes if record.parse_failure is not None),
+        parsed=sum(1 for record in source_nodes if record.parse_failure is None),
+        failed_parse=sum(1 for record in source_nodes if record.parse_failure is not None),
         excluded=len(files) - len(nodes),
+        assets=sum(1 for record in nodes if record.language is None),
         excluded_by_reason=_sorted_counts(
             record.excluded_reason for record in files if record.excluded_reason is not None
         ),

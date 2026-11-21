@@ -223,7 +223,9 @@ Report the results with the exact output. Then wait. Do not start 3c.
   - re-exports (`export * from`, `export { x } from`)
   - dynamic imports whose module name is a literal string
   - type-only imports, recorded as their own kind
+  - imports of asset files (JSON, CSS, SVG and images), each as its own kind, pointing at the real file
 - Resolve every reference with TypeScript's own module resolver, through a small Node helper. The helper uses the TypeScript compiler, pinned to one version, and is called by the parser through a versioned request and response format. The nearest configuration file to each file is used, so path aliases, `extends` and index files resolve the way the compiler resolves them.
+- Read the repository's workspace declaration as data, and map each workspace package's name to its folder. A configuration file's `extends` that names a workspace package resolves to that package's file, and an import of a workspace package resolves to its entry file. No dependency folder is read.
 - Record coverage per the shared contract. Re-exports get their own coverage figure, because barrel files are where the video's graph silently lost edges.
 - Create the TypeScript and JavaScript fixtures used by this part.
 
@@ -233,12 +235,16 @@ Report the results with the exact output. Then wait. Do not start 3c.
 - **The helper has a versioned contract.** The request and response format carries a version number. The parser refuses an answer from a helper whose version it does not recognise, and reports that as a failure, not as silence.
 - **The helper is pinned.** Its TypeScript version is fixed in the helper's own dependency file and recorded in every output. Changing it is a deliberate act, and it changes the parser version.
 - **The helper runs in a fixed way.** It is called once per repository with all references in one batch, not once per file, so a large repository is not slowed by a process per import.
-- **Re-exports must resolve or carry a named reason.** For every re-export found, the output shows whether it resolved. A barrel file with an unresolved re-export is reported with the reason, never silently shortened.
+- **Re-exports must resolve or carry a named reason.** For every re-export found, the output shows whether it resolved. A barrel file with an unresolved re-export is reported with the reason, never silently shortened. A re-export of an asset is a re-export edge with the asset resolution path, and it counts in the re-export figure.
 - **Path aliases from configuration resolve, and an alias that does not match is unresolved.** An alias that matches no configured path is recorded with the reason, not guessed.
+- **An asset import is an edge to the real file, with its own kind.** JSON, CSS, SVG and image imports are dependencies that fail at runtime when the file is missing, so folding them into `import` or dropping them hides a real reference. An asset path that matches no file is unresolved with its reason.
+- **A query or fragment on a specifier is not part of the file path.** Bundlers append `?inline`, `?raw`, `?url` and `#...`; resolving the suffix as a filename reports a real file as missing. The path before the suffix is resolved, and the reference is recorded as written.
 - **Dependency folders are excluded, with a reason.** Installed packages are never nodes, and their imports are external.
+- **A bare specifier is classified before the asset fallback.** A bare specifier that names no workspace package is external, whatever its extension, because a dependency's JSON file is not a missing asset.
+- **Workspace packages resolve inside the repository without an install.** A fresh clone has no dependency folder, so a package-name `extends` or a workspace import would otherwise fail even though the code is present. The workspace declaration and each package's name and entry are read as data, and the compiler resolves the entry file's own contents. A workspace import is an edge when its entry exists, and otherwise unresolved with a named reason. A dependency folder stays external. When a package declares `exports`, a subpath it does not declare is unresolved with a named reason; there is no physical fallback.
 - **Generated and declaration files are handled explicitly.** Declaration files are recorded as nodes with their kind, so they can be told apart. Generated files are excluded only when the repository marks them so, and the exclusion names the marker.
 - **Coverage's denominator counts every import and re-export seen.** Type-only imports are counted in the denominator, and their kind is shown.
-- **Node is a runtime dependency of the parser.** This must be approved by the user before the part is built, because it adds a runtime requirement to the server.
+- **Node is a runtime dependency of the parser.** Approved. The helper runs on Node LTS, with its TypeScript version fixed in its own dependency file. It reads text and returns paths, and never installs, imports or runs code from the analysed repository.
 
 ### TypeScript and JavaScript fixtures created in this part
 
@@ -246,9 +252,11 @@ Report the results with the exact output. Then wait. Do not start 3c.
 2. **Path aliases.** A configuration file with a path alias, a second configuration file that extends it, and imports that use both.
 3. **Nearest configuration.** Two packages in one repository with different aliases for the same name, each resolving to its own package.
 4. **Type-only and dynamic imports.** A type-only import, a literal dynamic import, and a non-literal dynamic import, which must be unresolved with its reason.
-5. **Declaration files.** A declaration file beside its implementation.
+5. **Declaration and generated files.** A declaration file beside its implementation, and a generated file with a marker that must be excluded with the marker named.
 6. **Mixed JavaScript and TypeScript.** A JavaScript file importing a TypeScript file, and the reverse.
 7. **Dependency folder.** A folder standing in for installed packages, which must produce no nodes.
+8. **Asset imports.** A source file importing a JSON file, a CSS file and an image, each resolving to a real file, one asset import that matches no file, which must be unresolved with its reason, one asset import with a query suffix, which resolves to its file, one bare package asset specifier, which must be external, and one asset re-export, which is a re-export edge with the asset resolution path and counts in the re-export figure.
+9. **Workspace package.** A root workspace declaration, a package with a name and an entry, a configuration package, an app importing the package, and a configuration file extending the configuration package. The import is an edge, the `extends` is read, and no dependency folder exists. An import of an undeclared `exports` subpath must be unresolved with its reason.
 
 ### Acceptance check
 

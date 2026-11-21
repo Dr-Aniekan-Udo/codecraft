@@ -19,6 +19,11 @@ _ALLOWED = {
         "codecraft_parsing.common",
         "codecraft_parsing.go",
     ),
+    "typescript": (
+        "codecraft_core",
+        "codecraft_parsing.common",
+        "codecraft_parsing.typescript",
+    ),
 }
 
 
@@ -54,3 +59,7 @@ def test_the_python_parser_imports_no_other_language_parser() -> None:
 
 def test_the_go_parser_imports_no_other_language_parser() -> None:
     _assert_language_imports_only("go")
+
+
+def test_the_typescript_parser_imports_no_other_language_parser() -> None:
+    _assert_language_imports_only("typescript")

@@ -1,0 +1,141 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (languages typescript and javascript; tree-sitter 0.26.0; tree-sitter-typescript 0.23.2; tree-sitter-javascript 0.25.0; js resolver protocol 1; typescript 6.0.3)",
+  "python": null,
+  "go": null,
+  "typescript": {
+    "config_files": []
+  },
+  "files": [
+    {
+      "path": "src/a.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:51c251c6f0c7321c8230c0f86372bfbe24d47a1c481cb1e9dd9395f9ac20b757",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "src/b.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:4d6c305aa3866c1d56beb6a3b2394fe9dc4b3ce5f3756a2357139efefbd969d0",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "src/c.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:b7defcba5edab38135a5eedb13194e5830780d04d20bfd0f168bd61336cc69aa",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "src/index.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 2,
+      "content_hash": "sha256:878d64395b1b58bc4c04be2ee03494f6405bf488798692b870ce5fdea42fbf30",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "src/a.ts",
+      "target": "src/c.ts",
+      "target_kind": "file",
+      "kind": "re_export",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "extension",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "src/index.ts",
+      "target": "src/a.ts",
+      "target_kind": "file",
+      "kind": "re_export",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "extension",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "src/index.ts",
+      "target": "src/b.ts",
+      "target_kind": "file",
+      "kind": "re_export",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "extension",
+      "line": 2,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 3,
+    "resolved": 3,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 0,
+    "python": null,
+    "go": null,
+    "typescript": {
+      "re_exports": 3,
+      "re_exports_resolved": 3
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 4,
+    "parsed": 4,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

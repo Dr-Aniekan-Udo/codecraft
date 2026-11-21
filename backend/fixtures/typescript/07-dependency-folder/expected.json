@@ -1,0 +1,72 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (languages typescript and javascript; tree-sitter 0.26.0; tree-sitter-typescript 0.23.2; tree-sitter-javascript 0.25.0; js resolver protocol 1; typescript 6.0.3)",
+  "python": null,
+  "go": null,
+  "typescript": {
+    "config_files": []
+  },
+  "files": [
+    {
+      "path": "src/index.ts",
+      "folder": "src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:bbd1a120026d04f370b121694741acf3ff648fd256877042377e312706088f9f",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    }
+  ],
+  "excluded_directories": [
+    {
+      "path": "node_modules/",
+      "reason": "dependency installation"
+    }
+  ],
+  "edges": [],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [],
+  "external_references": [
+    {
+      "source": "src/index.ts",
+      "reference": "stand-in",
+      "top_level": "stand-in",
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "excluded_references": [],
+  "coverage": {
+    "references": 1,
+    "resolved": 0,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 1,
+    "excluded": 0,
+    "failed": 0,
+    "python": null,
+    "go": null,
+    "typescript": {
+      "re_exports": 0,
+      "re_exports_resolved": 0
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 1,
+    "parsed": 1,
+    "failed_parse": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
+  }
+}

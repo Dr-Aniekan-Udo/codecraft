@@ -1,0 +1,10 @@
+{
+  "extends": "@fixture/config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["./lib/*"],
+      "@fixture/ui/*": ["../../packages/ui/src/*"]
+    }
+  }
+}

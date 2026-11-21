@@ -33,6 +33,12 @@
         { "type": "null" }
       ]
     },
+    "typescript": {
+      "anyOf": [
+        { "$ref": "#/$defs/typescript_repository_details" },
+        { "type": "null" }
+      ]
+    },
     "files": {
       "type": "array",
       "items": { "$ref": "#/$defs/file_record" }
@@ -162,6 +168,48 @@
         "packages": { "type": "integer", "minimum": 0 }
       }
     },
+    "resolution_path": {
+      "enum": [
+        "path_alias",
+        "workspace_package",
+        "package_entry_point",
+        "index_file",
+        "extension",
+        "relative",
+        "asset"
+      ]
+    },
+    "typescript_file_kind": {
+      "enum": ["source", "declaration"]
+    },
+    "typescript_file_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/typescript_file_kind" }
+      }
+    },
+    "typescript_repository_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["config_files"],
+      "properties": {
+        "config_files": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "typescript_coverage_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["re_exports", "re_exports_resolved"],
+      "properties": {
+        "re_exports": { "type": "integer", "minimum": 0 },
+        "re_exports_resolved": { "type": "integer", "minimum": 0 }
+      }
+    },
     "file_record": {
       "type": "object",
       "additionalProperties": false,
@@ -181,7 +229,7 @@
       "properties": {
         "path": { "type": "string" },
         "folder": { "type": "string" },
-        "language": { "enum": ["python", "go", null] },
+        "language": { "enum": ["python", "go", "typescript", "javascript", null] },
         "line_count": { "type": ["integer", "null"], "minimum": 0 },
         "content_hash": {
           "anyOf": [
@@ -207,6 +255,12 @@
         "go": {
           "anyOf": [
             { "$ref": "#/$defs/go_file_details" },
+            { "type": "null" }
+          ]
+        },
+        "typescript": {
+          "anyOf": [
+            { "$ref": "#/$defs/typescript_file_details" },
             { "type": "null" }
           ]
         }
@@ -243,6 +297,23 @@
             },
             "required": ["go", "python"]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "is_node": { "const": true },
+              "language": { "enum": ["typescript", "javascript"] }
+            },
+            "required": ["is_node", "language"]
+          },
+          "then": {
+            "properties": {
+              "typescript": { "$ref": "#/$defs/typescript_file_details" },
+              "python": { "type": "null" },
+              "go": { "type": "null" }
+            },
+            "required": ["typescript", "python", "go"]
+          }
         }
       ]
     },
@@ -273,13 +344,46 @@
         "target": { "type": "string" },
         "target_kind": { "enum": ["file", "package"] },
         "kind": {
-          "enum": ["import", "dynamic_import", "blank_import", "dot_import"]
+          "enum": [
+            "import",
+            "dynamic_import",
+            "blank_import",
+            "dot_import",
+            "re_export",
+            "type_only_import",
+            "asset_import"
+          ]
         },
         "condition": { "enum": ["type_only", "optional", "lazy", null] },
         "alias": { "type": ["string", "null"] },
+        "resolution_path": {
+          "anyOf": [
+            { "$ref": "#/$defs/resolution_path" },
+            { "type": "null" }
+          ]
+        },
         "line": { "type": "integer", "minimum": 1 },
         "column": { "type": "integer", "minimum": 1 }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": ["re_export", "type_only_import", "asset_import"]
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "target_kind": { "const": "file" },
+              "resolution_path": { "$ref": "#/$defs/resolution_path" }
+            },
+            "required": ["target_kind", "resolution_path"]
+          }
+        }
+      ]
     },
     "symbol_record": {
       "type": "object",
@@ -388,6 +492,12 @@
             { "type": "null" }
           ]
         },
+        "typescript": {
+          "anyOf": [
+            { "$ref": "#/$defs/typescript_coverage_details" },
+            { "type": "null" }
+          ]
+        },
         "failures_by_reason": {
           "type": "object",
           "additionalProperties": { "type": "integer", "minimum": 0 }
@@ -407,6 +517,7 @@
         "parsed": { "type": "integer", "minimum": 0 },
         "failed_parse": { "type": "integer", "minimum": 0 },
         "excluded": { "type": "integer", "minimum": 0 },
+        "assets": { "type": "integer", "minimum": 0 },
         "excluded_by_reason": {
           "type": "object",
           "additionalProperties": { "type": "integer", "minimum": 0 }

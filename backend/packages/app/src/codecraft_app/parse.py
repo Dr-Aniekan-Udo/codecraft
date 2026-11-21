@@ -81,12 +81,16 @@ def _summary(model: RepositoryParse, root: Path) -> list[str]:
     elif model.go is not None:
         context = model.go.build_context
         lines.append(f"go build context: {context.os}/{context.arch}")
+    elif model.typescript is not None:
+        configs = ", ".join(model.typescript.config_files)
+        lines.append(f"typescript configuration files: {configs if configs else 'none'}")
     else:
         lines.append("import root: not reported")
+    asset_count = f", {files.assets} assets" if files.assets else ""
     lines.extend(
         [
             f"files: {files.found} found, {files.parsed} parsed, "
-            f"{files.failed_parse} failed to parse, {files.excluded} excluded",
+            f"{files.failed_parse} failed to parse, {files.excluded} excluded{asset_count}",
             f"excluded directories: {len(model.excluded_directories)}",
         ]
     )
@@ -128,6 +132,11 @@ def _summary(model: RepositoryParse, root: Path) -> list[str]:
         )
         lines.append(f"go modules: {module_list if module_list else 'none'}")
         lines.append(f"go packages: {coverage.go.packages}")
+    elif coverage.typescript is not None:
+        lines.append(
+            f"re-exports: {coverage.typescript.re_exports} found, "
+            f"{coverage.typescript.re_exports_resolved} resolved"
+        )
     lines.append(f"unresolved: {coverage.failed}")
     lines.extend(f"  {reason}: {count}" for reason, count in coverage.failures_by_reason.items())
     parse_failures = Counter(

@@ -1,0 +1,161 @@
+{
+  "parser_version": "codecraft-parsing 0.1.0 (languages typescript and javascript; tree-sitter 0.26.0; tree-sitter-typescript 0.23.2; tree-sitter-javascript 0.25.0; js resolver protocol 1; typescript 6.0.3)",
+  "python": null,
+  "go": null,
+  "typescript": {
+    "config_files": [
+      "packages/a/tsconfig.json",
+      "packages/b/tsconfig.json"
+    ]
+  },
+  "files": [
+    {
+      "path": "packages/a/src/main.ts",
+      "folder": "packages/a/src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:404c83da382d918dd7ad844b5e29893d62c0939bc803ec7225878830516ac3a2",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "packages/a/src/util.ts",
+      "folder": "packages/a/src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:89a5926f199a40ed3649c6903b0867124e9e37baeb2136ad37bbdc8f3aea3f03",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "packages/a/tsconfig.json",
+      "folder": "packages/a",
+      "language": null,
+      "line_count": 8,
+      "content_hash": "sha256:de4f97d7a97ad8bc2fa7719a2d5069e4d7520738c479a706372d577ed2abcce8",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    },
+    {
+      "path": "packages/b/lib/util.ts",
+      "folder": "packages/b/lib",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:6f2bb0fd55c477608abcdeb5e99d0ee9abedd6e714a712c92568e9099ce73f10",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "packages/b/src/main.ts",
+      "folder": "packages/b/src",
+      "language": "typescript",
+      "line_count": 1,
+      "content_hash": "sha256:404c83da382d918dd7ad844b5e29893d62c0939bc803ec7225878830516ac3a2",
+      "is_node": true,
+      "excluded_reason": null,
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null,
+      "typescript": {
+        "kind": "source"
+      }
+    },
+    {
+      "path": "packages/b/tsconfig.json",
+      "folder": "packages/b",
+      "language": null,
+      "line_count": 8,
+      "content_hash": "sha256:e2eaf89b1ba8262af575838444c492c6d41c3141b5e7074f124517583ec2d382",
+      "is_node": false,
+      "excluded_reason": "not a TypeScript or JavaScript file",
+      "parse_failure": null,
+      "adapter_role": "fallback",
+      "python": null,
+      "go": null
+    }
+  ],
+  "excluded_directories": [],
+  "edges": [
+    {
+      "source": "packages/a/src/main.ts",
+      "target": "packages/a/src/util.ts",
+      "target_kind": "file",
+      "kind": "import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "path_alias",
+      "line": 1,
+      "column": 1
+    },
+    {
+      "source": "packages/b/src/main.ts",
+      "target": "packages/b/lib/util.ts",
+      "target_kind": "file",
+      "kind": "import",
+      "condition": null,
+      "alias": null,
+      "resolution_path": "path_alias",
+      "line": 1,
+      "column": 1
+    }
+  ],
+  "symbol_references": [],
+  "star_import_references": [],
+  "cgo_references": [],
+  "unresolved_references": [],
+  "external_references": [],
+  "excluded_references": [],
+  "coverage": {
+    "references": 2,
+    "resolved": 2,
+    "symbols": 0,
+    "star_imports": 0,
+    "cgo": 0,
+    "external": 0,
+    "excluded": 0,
+    "failed": 0,
+    "python": null,
+    "go": null,
+    "typescript": {
+      "re_exports": 0,
+      "re_exports_resolved": 0
+    },
+    "failures_by_reason": {},
+    "failure_examples": []
+  },
+  "file_coverage": {
+    "found": 6,
+    "parsed": 4,
+    "failed_parse": 0,
+    "excluded": 2,
+    "excluded_by_reason": {
+      "not a TypeScript or JavaScript file": 2
+    }
+  }
+}
